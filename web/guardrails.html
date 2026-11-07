@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open-GenCut - Guardrail</title>
+<style>
+  :root { --bg:#f5f7fa; --panel:#fff; --ink:#1c2530; --muted:#5d6b7a; --accent:#1f6feb; --accent-ink:#fff; --danger:#c62828; --ok:#2e7d32; --warn:#b26a00; --line:#d9e0e7; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --accent-ink:#0b1220; --danger:#ef5350; --ok:#66bb6a; --warn:#ffb74d; --line:#2a3644; }
+  }
+  :root[data-theme="dark"] { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --accent-ink:#0b1220; --danger:#ef5350; --ok:#66bb6a; --warn:#ffb74d; --line:#2a3644; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,"Segoe UI",Roboto,sans-serif; }
+  button, .btn, select, input, textarea { font:inherit; color:var(--ink); }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; padding:14px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:20px; margin:0; } header h1 span { color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+  .btn, nav button { border:1px solid var(--line); background:var(--panel); padding:7px 12px; border-radius:6px; cursor:pointer; text-decoration:none; }
+  .btn.primary, nav button.active { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .btn.danger { color:var(--danger); }
+  select, input, textarea { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:7px 9px; max-width:100%; }
+  main { padding:16px; max-width:1100px; margin:0 auto; }
+  section.view { display:none; } section.view.active { display:block; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-size:13px; font-weight:600; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .kpi { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .kpi b { display:block; font-size:22px; } .kpi span { color:var(--muted); font-size:13px; }
+  .help { color:var(--muted); font-size:13px; }
+  .allow { color:var(--ok); font-weight:600; } .mask { color:var(--warn); font-weight:600; } .block { color:var(--danger); font-weight:600; }
+  .msg { padding:10px 12px; border-radius:6px; border:1px solid var(--line); margin-bottom:12px; }
+  .msg.err { color:var(--danger); border-color:var(--danger); } .msg.ok { color:var(--ok); border-color:var(--ok); }
+  .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; }
+  .form-grid label { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; }
+  .form-grid select, .form-grid input, .form-grid textarea { width:100%; }
+  pre { white-space:pre-wrap; word-break:break-word; background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:10px; }
+  dialog { border:1px solid var(--line); border-radius:10px; background:var(--panel); color:var(--ink); width:min(640px,94vw); padding:0; }
+  dialog::backdrop { background:rgba(0,0,0,.4); }
+  .alpha-tag { display:inline-block; margin-left:6px; padding:1px 8px; border-radius:6px; background:#f9a825; color:#1c2530; font-size:12px; font-weight:700; vertical-align:middle; letter-spacing:.04em; }
+  .alpha-badge { font-size:12px; color:var(--danger); border:1px solid var(--danger); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+  @media (max-width:640px) { th,td { font-size:13px; } }
+</style>
+<link rel="stylesheet" href="/theme.css?v=1">
+</head>
+<body>
+<header>
+  <h1>Open-GenCut <span>AMP</span> <span class="alpha-tag">Alfa</span> - <span data-i18n="title">Guardrail</span></h1>
+  <span class="alpha-badge" data-i18n="alpha">Versione alfa - non usare in produzione</span>
+  <div class="row" style="margin:0">
+    <select id="lang" aria-label="Language" style="width:auto">
+      <option value="it">Italiano</option><option value="en">English</option>
+      <option value="fr">Français</option><option value="de">Deutsch</option>
+    </select>
+  </div>
+</header>
+<div id="gc-nav"></div>
+<main>
+  <div id="notice"></div>
+  <nav class="row">
+    <button data-view="rules" class="active" data-i18n="nav.rules">Regole</button>
+    <button data-view="test" data-i18n="nav.test">Prova</button>
+    <button data-view="events" data-i18n="nav.events">Registro</button>
+    <button data-view="summary" data-i18n="nav.summary">Riepilogo</button>
+    <button data-view="help" data-i18n="nav.help">Aiuto</button>
+  </nav>
+
+  <!-- REGOLE -->
+  <section class="view active" id="v-rules">
+    <div class="row"><button class="btn primary" id="g-add" data-i18n="btn.add">Aggiungi</button></div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.name">Nome</th><th data-i18n="c.type">Tipo</th><th data-i18n="c.scope">Ambito</th><th data-i18n="c.enabled">Attiva</th><th></th>
+    </tr></thead><tbody id="g-body"></tbody></table></div>
+  </section>
+
+  <!-- PROVA -->
+  <section class="view" id="v-test">
+    <div class="card">
+      <div class="form-grid">
+        <div><label for="t-agent" data-i18n="c.agent">Agente</label><select id="t-agent"></select></div>
+        <div><label for="t-res" data-i18n="c.resource">Risorsa</label><select id="t-res"></select></div>
+        <div><label for="t-dir" data-i18n="c.direction">Direzione</label><select id="t-dir"><option value="input" data-i18n="c.input">Ingresso</option><option value="output" data-i18n="c.output">Uscita</option></select></div>
+      </div>
+      <div style="margin-top:12px"><label for="t-text" class="help" data-i18n="c.text">Testo</label><textarea id="t-text" rows="5" style="width:100%"></textarea></div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="t-go" data-i18n="btn.evaluate">Valuta</button></div>
+      <div id="t-out"></div>
+    </div>
+  </section>
+
+  <!-- REGISTRO -->
+  <section class="view" id="v-events">
+    <div class="row">
+      <select id="e-decision" style="width:auto"></select>
+      <select id="e-agent" style="min-width:220px"></select>
+    </div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.when">Quando</th><th data-i18n="c.agent">Agente</th><th data-i18n="c.direction">Direzione</th><th data-i18n="c.decision">Esito</th><th data-i18n="c.violations">Violazioni</th><th data-i18n="c.length">Lunghezza</th><th data-i18n="c.hash">Hash</th>
+    </tr></thead><tbody id="e-body"></tbody></table></div>
+    <p class="help" data-i18n="help.noText">Il registro non contiene il testo: solo lunghezza e impronta SHA-256.</p>
+  </section>
+
+  <!-- RIEPILOGO -->
+  <section class="view" id="v-summary">
+    <div class="grid" id="s-kpis"></div>
+    <div class="card"><h3 data-i18n="c.byType">Per tipo</h3><div id="s-types"></div></div>
+  </section>
+
+  <!-- AIUTO -->
+  <section class="view" id="v-help">
+    <div class="card">
+      <h2 data-i18n="help.title">Guida in linea</h2>
+      <p data-i18n="help.body">Le guardrail applicano regole a runtime, in ingresso e in uscita, a ogni agente o risorsa. Il mascheramento sostituisce i dati personali; il blocco nega la richiesta. Un blocco prevale su un mascheramento. Il rilevamento usa regole ed espressioni regolari, non modelli di intelligenza artificiale.</p>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <div style="padding:18px">
+    <h2 id="dlg-title"></h2>
+    <span class="alpha-tag">Alfa</span>
+    <div id="dlg-body"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="dlg-ok"></button>
+      <button class="btn" id="dlg-cancel"></button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+  var TYPES = ["pii_mask", "pii_block", "keyword_block", "max_length", "rate_limit_per_minute", "prompt_injection"];
+  var EX = { pii_mask: "{}", pii_block: "{}", keyword_block: '{"terms": ["parola"]}', max_length: '{"max_chars": 2000}', rate_limit_per_minute: '{"limit": 60}', prompt_injection: "{}" };
+  var I = {
+    it: { title:"Guardrail", alpha:"Versione alfa - non usare in produzione", back:"Registro agenti",
+      nav:{rules:"Regole",test:"Prova",events:"Registro",summary:"Riepilogo",help:"Aiuto"},
+      btn:{add:"Aggiungi",save:"Salva",cancel:"Annulla",confirm:"Conferma",edit:"Modifica",del:"Elimina",evaluate:"Valuta"},
+      c:{name:"Nome",type:"Tipo",scope:"Ambito",enabled:"Attiva",agent:"Agente",resource:"Risorsa",direction:"Direzione",input:"Ingresso",output:"Uscita",text:"Testo",decision:"Esito",violations:"Violazioni",length:"Lunghezza",hash:"Impronta",when:"Quando",byType:"Per tipo",params:"Parametri (JSON)",yes:"Sì",no:"No",global:"Globale",agentScope:"Agente",resourceScope:"Risorsa",none:"nessuno",allow:"Consentito",mask:"Mascherato",block:"Bloccato",all:"Tutti gli esiti",total:"Totale ultime 24 ore"},
+      t:{pii_mask:"Mascheramento dati personali",pii_block:"Blocco dati personali",keyword_block:"Blocco parole vietate",max_length:"Lunghezza massima",rate_limit_per_minute:"Limite di frequenza al minuto",prompt_injection:"Rilevamento tentativi di sovrascrittura"},
+      dlg:{add:"Nuova guardrail",edit:"Modifica guardrail",del:"Eliminare la guardrail?"},
+      errJson:"Parametri JSON non validi", errName:"Il nome è obbligatorio", errCode:"Il codice è obbligatorio", errTitle:"Il titolo è obbligatorio", vdet: {"pii_mask": "{count} dato/i personale/i mascherato/i: {kinds}", "pii_block": "Dati personali rilevati: {kinds}", "keyword_block": "Termine vietato rilevato ({count})", "max_length": "Testo di {length} caratteri, massimo {max}", "rate_limit_per_minute": "{count} richieste nell'ultimo minuto, limite {limit}", "prompt_injection": "Tentativo di sovrascrittura delle istruzioni"}, ok:"Salvato.", err:"Errore", empty:"Nessun elemento.", need:"Seleziona un elemento.", help:{title:"Guida in linea",body:"Le guardrail applicano regole a runtime, in ingresso e in uscita, a ogni agente o risorsa. Il mascheramento sostituisce i dati personali; il blocco nega la richiesta. Un blocco prevale su un mascheramento. Il rilevamento usa regole ed espressioni regolari, non modelli di intelligenza artificiale.",noText:"Il registro non contiene il testo: solo lunghezza e impronta SHA-256."} },
+    en: { title:"Guardrails", alpha:"Alpha version - do not use in production", back:"Agent registry",
+      nav:{rules:"Rules",test:"Test",events:"Log",summary:"Summary",help:"Help"},
+      btn:{add:"Add",save:"Save",cancel:"Cancel",confirm:"Confirm",edit:"Edit",del:"Delete",evaluate:"Evaluate"},
+      c:{name:"Name",type:"Type",scope:"Scope",enabled:"Enabled",agent:"Agent",resource:"Resource",direction:"Direction",input:"Input",output:"Output",text:"Text",decision:"Result",violations:"Violations",length:"Length",hash:"Fingerprint",when:"When",byType:"By type",params:"Parameters (JSON)",yes:"Yes",no:"No",global:"Global",agentScope:"Agent",resourceScope:"Resource",none:"none",allow:"Allowed",mask:"Masked",block:"Blocked",all:"All results",total:"Total last 24 hours"},
+      t:{pii_mask:"Personal data masking",pii_block:"Personal data block",keyword_block:"Forbidden words block",max_length:"Maximum length",rate_limit_per_minute:"Rate limit per minute",prompt_injection:"Prompt injection detection"},
+      dlg:{add:"New guardrail",edit:"Edit guardrail",del:"Delete the guardrail?"},
+      errJson:"Invalid JSON parameters", errName:"Name is required", errCode:"Code is required", errTitle:"Title is required", vdet: {"pii_mask": "{count} personal data item(s) masked: {kinds}", "pii_block": "Personal data detected: {kinds}", "keyword_block": "Forbidden term detected ({count})", "max_length": "Text of {length} characters, maximum {max}", "rate_limit_per_minute": "{count} requests in the last minute, limit {limit}", "prompt_injection": "Attempt to override instructions"}, ok:"Saved.", err:"Error", empty:"No items.", need:"Select an item.", help:{title:"Online help",body:"Guardrails apply runtime rules, on input and output, to each agent or resource. Masking replaces personal data; blocking denies the request. A block takes precedence over a mask. Detection uses rules and regular expressions, not AI models.",noText:"The log holds no text: only length and SHA-256 fingerprint."} },
+    fr: { title:"Garde-fous", alpha:"Version alpha - ne pas utiliser en production", back:"Registre des agents",
+      nav:{rules:"Règles",test:"Essai",events:"Journal",summary:"Synthèse",help:"Aide"},
+      btn:{add:"Ajouter",save:"Enregistrer",cancel:"Annuler",confirm:"Confirmer",edit:"Modifier",del:"Supprimer",evaluate:"Évaluer"},
+      c:{name:"Nom",type:"Type",scope:"Portée",enabled:"Active",agent:"Agent",resource:"Ressource",direction:"Direction",input:"Entrée",output:"Sortie",text:"Texte",decision:"Résultat",violations:"Violations",length:"Longueur",hash:"Empreinte",when:"Date",byType:"Par type",params:"Paramètres (JSON)",yes:"Oui",no:"Non",global:"Global",agentScope:"Agent",resourceScope:"Ressource",none:"aucun",allow:"Autorisé",mask:"Masqué",block:"Bloqué",all:"Tous les résultats",total:"Total des 24 dernières heures"},
+      t:{pii_mask:"Masquage des données personnelles",pii_block:"Blocage des données personnelles",keyword_block:"Blocage des mots interdits",max_length:"Longueur maximale",rate_limit_per_minute:"Limite de fréquence par minute",prompt_injection:"Détection d'injection de prompt"},
+      dlg:{add:"Nouveau garde-fou",edit:"Modifier le garde-fou",del:"Supprimer le garde-fou ?"},
+      errJson:"Paramètres JSON non valides", errName:"Le nom est obligatoire", errCode:"Le code est obligatoire", errTitle:"Le titre est obligatoire", vdet: {"pii_mask": "{count} donnée(s) personnelle(s) masquée(s) : {kinds}", "pii_block": "Données personnelles détectées : {kinds}", "keyword_block": "Terme interdit détecté ({count})", "max_length": "Texte de {length} caractères, maximum {max}", "rate_limit_per_minute": "{count} requêtes la dernière minute, limite {limit}", "prompt_injection": "Tentative de contournement des instructions"}, ok:"Enregistré.", err:"Erreur", empty:"Aucun élément.", need:"Sélectionnez un élément.", help:{title:"Aide en ligne",body:"Les garde-fous appliquent des règles à l'exécution, en entrée et en sortie, à chaque agent ou ressource. Le masquage remplace les données personnelles ; le blocage refuse la demande. Un blocage prévaut sur un masquage. La détection repose sur des règles et des expressions régulières, pas sur des modèles d'IA.",noText:"Le journal ne contient pas le texte : seulement la longueur et l'empreinte SHA-256."} },
+    de: { title:"Guardrails", alpha:"Alpha-Version - nicht in der Produktion verwenden", back:"Agentenregister",
+      nav:{rules:"Regeln",test:"Test",events:"Protokoll",summary:"Übersicht",help:"Hilfe"},
+      btn:{add:"Hinzufügen",save:"Speichern",cancel:"Abbrechen",confirm:"Bestätigen",edit:"Bearbeiten",del:"Löschen",evaluate:"Prüfen"},
+      c:{name:"Name",type:"Typ",scope:"Geltungsbereich",enabled:"Aktiv",agent:"Agent",resource:"Ressource",direction:"Richtung",input:"Eingabe",output:"Ausgabe",text:"Text",decision:"Ergebnis",violations:"Verstöße",length:"Länge",hash:"Fingerabdruck",when:"Zeitpunkt",byType:"Nach Typ",params:"Parameter (JSON)",yes:"Ja",no:"Nein",global:"Global",agentScope:"Agent",resourceScope:"Ressource",none:"keine",allow:"Erlaubt",mask:"Maskiert",block:"Blockiert",all:"Alle Ergebnisse",total:"Gesamt letzte 24 Stunden"},
+      t:{pii_mask:"Maskierung personenbezogener Daten",pii_block:"Sperre personenbezogener Daten",keyword_block:"Sperre verbotener Wörter",max_length:"Maximale Länge",rate_limit_per_minute:"Frequenzlimit pro Minute",prompt_injection:"Erkennung von Prompt-Injection"},
+      dlg:{add:"Neue Guardrail",edit:"Guardrail bearbeiten",del:"Guardrail löschen?"},
+      errJson:"Ungültige JSON-Parameter", errName:"Name ist erforderlich", errCode:"Code ist erforderlich", errTitle:"Titel ist erforderlich", vdet: {"pii_mask": "{count} personenbezogene Daten maskiert: {kinds}", "pii_block": "Personenbezogene Daten erkannt: {kinds}", "keyword_block": "Verbotener Begriff erkannt ({count})", "max_length": "Text mit {length} Zeichen, maximal {max}", "rate_limit_per_minute": "{count} Anfragen in der letzten Minute, Limit {limit}", "prompt_injection": "Versuch, die Anweisungen zu überschreiben"}, ok:"Gespeichert.", err:"Fehler", empty:"Keine Einträge.", need:"Wählen Sie ein Element.", help:{title:"Online-Hilfe",body:"Guardrails wenden Regeln zur Laufzeit an, bei Eingabe und Ausgabe, für jeden Agenten oder jede Ressource. Die Maskierung ersetzt personenbezogene Daten; die Sperre verweigert die Anfrage. Eine Sperre hat Vorrang vor einer Maskierung. Die Erkennung nutzt Regeln und reguläre Ausdrücke, keine KI-Modelle.",noText:"Das Protokoll enthält keinen Text: nur Länge und SHA-256-Fingerabdruck."} }
+  };
+  var lang = "it", agents = [], resources = [], rules = [], dlgOk = null;
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return document.querySelectorAll(s); };
+  function t(k) { var p = k.split("."), d = I[lang], i = 0; for (; i < p.length; i++) { d = d && d[p[i]]; } return d !== undefined ? d : k; }
+  function esc(v) { return String(v === null || v === undefined ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function notice(m, k) { $("#notice").innerHTML = '<div class="msg ' + (k || "ok") + '">' + esc(m) + "</div>"; if (k !== "err") setTimeout(function () { $("#notice").innerHTML = ""; }, 3500); }
+  function api(method, path, body) {
+    var o = { method: method, headers: { "Accept": "application/json" } };
+    if (body !== undefined) { o.headers["Content-Type"] = "application/json"; o.body = JSON.stringify(body); }
+    return fetch("/api" + path, o).then(function (r) {
+      return r.text().then(function (txt) {
+        var d = null; try { d = txt ? JSON.parse(txt) : null; } catch (e) { d = null; }
+        if (!r.ok) throw new Error((I[lang].err || "Error") + ": " + ((d && d.message) || (r.status + " " + r.statusText)));
+        return d;
+      });
+    });
+  }
+  function fail(e) { notice(e.message, "err"); }
+  function openDialog(title, html, okLabel, onOk) {
+    $("#dlg-title").textContent = title;
+    $("#dlg-body").innerHTML = html + "<div id='dlg-err'></div>";
+    $("#dlg-ok").textContent = okLabel; $("#dlg-cancel").textContent = t("btn.cancel");
+    dlgOk = onOk; $("#dlg").showModal();
+  }
+  function closeDlg() { $("#dlg-err").innerHTML = ""; $("#dlg").close(); }
+  function dlgErr(m) { $("#dlg-err").innerHTML = '<div class="msg err">' + esc(m) + "</div>"; }
+  function opts(list, val, label, empty) {
+    return (empty !== undefined ? '<option value="">' + esc(empty) + "</option>" : "") +
+      list.map(function (x) { return '<option value="' + esc(val(x)) + '">' + esc(label(x)) + "</option>"; }).join("");
+  }
+  function scopeLabel(g) {
+    if (g.scope === "agent") { var a = agents.filter(function (x) { return String(x.id) === String(g.agent_id); })[0]; return t("c.agentScope") + ": " + (a ? a.name : g.agent_id); }
+    if (g.scope === "resource") { var r = resources.filter(function (x) { return String(x.id) === String(g.resource_id); })[0]; return t("c.resourceScope") + ": " + (r ? r.name : g.resource_id); }
+    return t("c.global");
+  }
+  function vText(v) {
+    var tpl = ((I[lang] && I[lang].vdet) || {})[v.type];
+    if (!tpl || !v.params) return v.detail || t("t." + v.type);
+    return tpl.replace(/\{(\w+)\}/g, function (_, k) {
+      var x = v.params[k];
+      if (Array.isArray(x)) return x.join(", ");
+      return x === undefined || x === null ? "" : String(x);
+    });
+  }
+  function dec(d) { return '<span class="' + esc(d) + '">' + esc(t("c." + d)) + "</span>"; }
+
+  function loadBase() {
+    return Promise.all([api("GET", "/agents"), api("GET", "/integrations/resources")]).then(function (r) {
+      agents = r[0] || []; resources = r[1] || [];
+      $("#t-agent").innerHTML = opts(agents, function (a) { return a.id; }, function (a) { return a.name; }, t("need"));
+      $("#t-res").innerHTML = opts(resources, function (x) { return x.id; }, function (x) { return x.name; }, t("c.none"));
+      $("#e-agent").innerHTML = opts(agents, function (a) { return a.id; }, function (a) { return a.name; }, t("c.all"));
+    });
+  }
+  function loadRules() {
+    return api("GET", "/guardrails").then(function (rows) {
+      rules = rows || [];
+      $("#g-body").innerHTML = rules.length ? rules.map(function (g) {
+        return "<tr><td>" + esc(g.name) + "</td><td>" + esc(t("t." + g.type)) + "</td><td>" + esc(scopeLabel(g)) + "</td><td>" + (g.enabled ? t("c.yes") : t("c.no")) +
+          '</td><td style="white-space:nowrap"><button class="btn" data-g-edit="' + g.id + '">' + esc(t("btn.edit")) + '</button> <button class="btn danger" data-g-del="' + g.id + '">' + esc(t("btn.del")) + "</button></td></tr>";
+      }).join("") : '<tr><td colspan="5">' + esc(t("empty")) + "</td></tr>";
+    }).catch(fail);
+  }
+  function loadEvents() {
+    var d = $("#e-decision").value, a = $("#e-agent").value;
+    var q = "?limit=50" + (d ? "&decision=" + d : "") + (a ? "&agent_id=" + a : "");
+    return api("GET", "/guardrails/events" + q).then(function (rows) {
+      rows = rows || [];
+      $("#e-body").innerHTML = rows.length ? rows.map(function (e) {
+        var vio = (e.violations || []).map(function (v) { return vText(v); }).join("; ");
+        var ag = agents.filter(function (x) { return String(x.id) === String(e.agent_id); })[0];
+        return "<tr><td>" + esc(e.at) + "</td><td>" + esc(ag ? ag.name : e.agent_id) + "</td><td>" + esc(t("c." + e.direction)) + "</td><td>" + dec(e.decision) +
+          "</td><td>" + esc(vio || t("c.none")) + "</td><td>" + esc(e.text_length) + "</td><td><code>" + esc((e.text_sha256 || "").slice(0, 12)) + "…</code></td></tr>";
+      }).join("") : '<tr><td colspan="7">' + esc(t("empty")) + "</td></tr>";
+    }).catch(fail);
+  }
+  function loadSummary() {
+    return api("GET", "/guardrails/summary").then(function (s) {
+      s = s || {}; var bd = s.by_decision || {}, bt = s.by_type || {};
+      $("#s-kpis").innerHTML = [[s.total || 0, t("c.total")], [bd.allow || 0, t("c.allow")], [bd.mask || 0, t("c.mask")], [bd.block || 0, t("c.block")]].map(function (x) {
+        return '<div class="kpi"><b>' + esc(x[0]) + "</b><span>" + esc(x[1]) + "</span></div>";
+      }).join("");
+      var keys = Object.keys(bt);
+      $("#s-types").innerHTML = keys.length ? keys.map(function (k) {
+        return "<div class='row'><div style='width:280px'>" + esc(t("t." + k)) + "</div><div><b>" + esc(bt[k]) + "</b></div></div>";
+      }).join("") : '<p class="help">' + esc(t("empty")) + "</p>";
+    }).catch(fail);
+  }
+
+  function ruleForm(g) {
+    g = g || { name: "", type: "pii_mask", params: {}, scope: "global", enabled: true };
+    var html = '<div class="form-grid">' +
+      '<div><label for="df-name">' + esc(t("c.name")) + ' *</label><input id="df-name" value="' + esc(g.name) + '"></div>' +
+      '<div><label for="df-type">' + esc(t("c.type")) + '</label><select id="df-type">' + opts(TYPES, function (x) { return x; }, function (x) { return t("t." + x); }) + "</select></div>" +
+      '<div><label for="df-scope">' + esc(t("c.scope")) + '</label><select id="df-scope"><option value="global">' + esc(t("c.global")) + '</option><option value="agent">' + esc(t("c.agentScope")) + '</option><option value="resource">' + esc(t("c.resourceScope")) + "</option></select></div>" +
+      '<div><label for="df-agent">' + esc(t("c.agent")) + '</label><select id="df-agent">' + opts(agents, function (a) { return a.id; }, function (a) { return a.name; }, t("c.none")) + "</select></div>" +
+      '<div><label for="df-res">' + esc(t("c.resource")) + '</label><select id="df-res">' + opts(resources, function (x) { return x.id; }, function (x) { return x.name; }, t("c.none")) + "</select></div>" +
+      '<div><label for="df-params">' + esc(t("c.params")) + '</label><textarea id="df-params" rows="2">' + esc(JSON.stringify(g.params || {})) + "</textarea></div>" +
+      '<div><label for="df-en">' + esc(t("c.enabled")) + '</label><select id="df-en"><option value="true">' + esc(t("c.yes")) + '</option><option value="false">' + esc(t("c.no")) + "</option></select></div></div>";
+    openDialog(g.id ? t("dlg.edit") : t("dlg.add"), html, t("btn.save"), function () {
+      var params; try { params = JSON.parse($("#df-params").value || "{}"); } catch (e) { return dlgErr(t("errJson")); }
+      var name = $("#df-name").value.trim(); if (!name) return dlgErr(t("errName"));
+      var scope = $("#df-scope").value;
+      var body = { name: name, type: $("#df-type").value, params: params, scope: scope, enabled: $("#df-en").value === "true",
+        agent_id: scope === "agent" && $("#df-agent").value ? +$("#df-agent").value : null,
+        resource_id: scope === "resource" && $("#df-res").value ? +$("#df-res").value : null };
+      var p = g.id ? api("PUT", "/guardrails/" + g.id, body) : api("POST", "/guardrails", body);
+      p.then(function () { closeDlg(); notice(t("ok")); loadRules(); }).catch(function (x) { dlgErr(x.message); });
+    });
+    $("#df-type").value = g.type; $("#df-scope").value = g.scope; $("#df-en").value = g.enabled ? "true" : "false";
+    $("#df-agent").value = g.agent_id || ""; $("#df-res").value = g.resource_id || "";
+    $("#df-type").addEventListener("change", function () { if (!g.id) $("#df-params").value = EX[$("#df-type").value]; });
+  }
+  function runTest() {
+    var aid = $("#t-agent").value; if (!aid) return notice(t("need"), "err");
+    var body = { agent_id: +aid, direction: $("#t-dir").value, text: $("#t-text").value };
+    var rid = $("#t-res").value; if (rid) body.resource_id = +rid;
+    api("POST", "/guardrails/evaluate", body).then(function (r) {
+      var vio = (r.violations || []).map(function (v) { return "<li>" + esc(vText(v)) + "</li>"; }).join("");
+      $("#t-out").innerHTML = "<p>" + t("c.decision") + ": " + dec(r.decision) + "</p>" +
+        (vio ? "<ul>" + vio + "</ul>" : "") +
+        (r.decision === "block" ? "" : "<pre>" + esc(r.text) + "</pre>");
+      loadEvents();
+    }).catch(fail);
+  }
+
+  function view(name) {
+    $$("nav button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-view") === name); });
+    $$("section.view").forEach(function (s) { s.classList.toggle("active", s.id === "v-" + name); });
+    if (name === "rules") loadRules();
+    if (name === "events") loadEvents();
+    if (name === "summary") loadSummary();
+  }
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.title = t("title") + " - Open-GenCut";
+    $$("[data-i18n]").forEach(function (el) { el.textContent = t(el.getAttribute("data-i18n")); });
+    $("#dlg-ok").textContent = t("btn.confirm"); $("#dlg-cancel").textContent = t("btn.cancel");
+    $("#e-decision").innerHTML = ["", "allow", "mask", "block"].map(function (x) { return '<option value="' + x + '">' + esc(x ? t("c." + x) : t("c.all")) + "</option>"; }).join("");
+    loadBase().then(function () { view(document.querySelector("nav button.active").getAttribute("data-view")); }).catch(fail);
+  }
+
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.hasAttribute("data-view")) return view(b.getAttribute("data-view"));
+    var id;
+    if (b.id === "g-add") return ruleForm(null);
+    if ((id = b.getAttribute("data-g-edit"))) return ruleForm(rules.filter(function (g) { return String(g.id) === id; })[0]);
+    if ((id = b.getAttribute("data-g-del"))) return openDialog(t("dlg.del"), "<p class='help'>" + esc(t("dlg.del")) + "</p>", t("btn.confirm"), function () {
+      api("DELETE", "/guardrails/" + id).then(function () { closeDlg(); notice(t("ok")); loadRules(); }).catch(function (x) { dlgErr(x.message); });
+    });
+    if (b.id === "t-go") return runTest();
+    if (b.id === "dlg-ok") return dlgOk && dlgOk();
+    if (b.id === "dlg-cancel") return closeDlg();
+  });
+  $("#e-decision").addEventListener("change", loadEvents);
+  $("#e-agent").addEventListener("change", loadEvents);
+  $("#lang").addEventListener("change", function (e) { lang = e.target.value; try { localStorage.setItem("gencut.lang", lang); } catch (x) {} $("#notice").innerHTML = ""; applyLang(); });
+  try { var s = localStorage.getItem("gencut.lang"); if (s && I[s]) lang = s; } catch (x) {}
+  $("#lang").value = lang;
+  applyLang();
+  loadRules();
+})();
+</script>
+<script src="/nav.js?v=7"></script>
+</body>
+</html>

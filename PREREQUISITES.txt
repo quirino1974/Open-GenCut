@@ -1,0 +1,36 @@
+REQUISITI DI OPEN-GENCUT
+------------------------
+
+Autore: Quirino Scaramastra
+
+SISTEMA
+-------
+- Linux (testato su Ubuntu) con Docker e Docker Compose v2.
+- Almeno 4 GB di RAM libera per SQL Server e per il server Go; 10 GB di disco.
+- Porte: 8080 (HTTP), 8443 (HTTPS), 1433 (SQL Server).
+
+SOFTWARE E IMMAGINI DOCKER
+--------------------------
+- mcr.microsoft.com/mssql/server:2022-latest (database geniuscut).
+- golang:1.23-bookworm (compilazione e avvio del server; il modulo Go richiede la rete al primo avvio).
+- nginx:stable-alpine (proxy HTTPS).
+- python:3.12-slim (solo per le suite di regressione).
+- alpine (solo per generare il certificato auto-firmato, una volta).
+
+Nessuna installazione di Go o Python sul sistema e' necessaria: tutto gira nei container.
+
+RETE
+----
+La rete Docker condivisa 'mon_mysql_net' deve esistere, oppure va cambiata nel file docker/docker-compose.yml.
+
+CERTIFICATO HTTPS
+-----------------
+Il certificato auto-firmato va generato una volta nella cartella docker/tls (cert.pem e key.pem).
+Non e' incluso nel repository. Per il laboratorio e' sufficiente un certificato auto-firmato;
+in produzione serve un certificato emesso da un'autorita' riconosciuta.
+
+CREDENZIALI
+-----------
+Nessuna password e' contenuta nel repository.
+- La password dell'amministratore del database va in un file .env (non versionato).
+- Gli utenti dell'applicazione si creano dalla pagina Utenti; l'admin iniziale va cambiato al primo accesso.

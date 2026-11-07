@@ -1,0 +1,298 @@
+OPEN-GENCUT - OPERATIONS MANUAL
+-------------------------------
+
+Autore: Quirino Scaramastra
+
+Version: draft v0.1, 2026-11-07. Audience: people who install, start and maintain the platform.
+Status: draft to be reviewed.
+
+Open-GenCut is an agent governance platform (AMP). In this phase it is a lab: it has no authentication, so use it only on a controlled network.
+
+1. Components
+-------------
+
+Component  Where it runs  Role
+SQL Server 2022 (database geniuscut)  container mon_mssql_express, port 1433  data for all functions
+API and GUI  container opengencut-api (image golang:1.23-bookworm), port 8080  REST API under /api and static pages
+Database schema  db/schema.sql  tables, constraints, additional columns
+Regression tests  tests/regression_backend.py, tests/regression_lifecycle.py  automatic checks of the routes
+
+The GUI consists of three static pages served by the API: /index.html (sections Agents, Configurations, Metrics, Audit), /integrations.html (sections Approvals, Resources, Allowlist, Limits, Check access, Access log), /lifecycle.html (sections Evaluations, Overview, Versions, Deploy and promotions, Monitoring).
+
+2. Requirements
+---------------
+
+- Docker and Docker Compose.
+- The existing Docker network mon_mysql_net (declared as external in the compose file).
+- The mon_mssql_express stack with its .env file, which contains the variable MSSQL_SA_PASSWORD.
+- Free ports: 1433 (SQL Server) and 8080 (API).
+- Python 3 on the computer used to run the tests (no external libraries).
+
+3. Installation and first start
+-------------------------------
+
+3.1 Start SQL Server
+
+    cd <cartella dello stack del database>
+    docker compose up -d
+    docker logs --tail 5 mon_mssql_express   # wait for "Recovery is complete"
+
+3.2 Create the database and apply the schema
+
+The script db/schema.sql creates the database geniuscut if it is missing and applies all the tables. It is idempotent: it can be run again without harm.
+
+    cd <cartella del progetto>
+    docker cp db/schema.sql mon_mssql_express:/tmp/schema.sql
+    docker exec mon_mssql_express bash -c 'SQLCMD=$(ls /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd | head -1); "$SQLCMD" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -b -i /tmp/schema.sql'
+
+The command ends with exit code 0 if everything is correct. The expected tables are: agent, configuration, audit, usage_log, integration_resource, agent_access, access_limit, access_event, agent_version, agent_environment, agent_deployment, agent_evaluation, integration_approval.
+
+3.3 Start the API
+
+From the docker/ folder of the project. The password is not written in the files: it is read from the .env file of the database stack.
+
+    cd <cartella del progetto>/docker
+    export MSSQL_SA_PASSWORD="$(grep '^MSSQL_SA_PASSWORD=' <cartella dello stack del database>/.env | cut -d= -f2- | tr -d '\"')"
+    docker compose up -d
+
+On the first start the container compiles the Go module: it takes about 30-45 seconds. The server waits up to 60 seconds for the database to respond.
+
+Check:
+
+    curl -s http://localhost:8080/api/health
+    # expected: {"db":"ok","status":"ok"}
+
+Then open http://localhost:8080/ in the browser.
+
+4. Configuration
+----------------
+
+The settings are environment variables of the opengencut-api service in docker/docker-compose.yml.
+
+Variable  Default  Meaning
+MSSQL_HOST  mon_mssql_express  SQL Server host
+MSSQL_PORT  1433  SQL Server port
+MSSQL_DATABASE  geniuscut  database
+MSSQL_USER  sa  user
+MSSQL_PASSWORD  none (required)  password, passed by the compose file from MSSQL_SA_PASSWORD
+HTTP_ADDR  :8080  address the API listens on
+WEB_DIR  /web  GUI folder inside the container
+
+To change the API port, edit ports and HTTP_ADDR in the compose file and run docker compose up -d again.
+
+Do not write the password in the compose file or in other project files.
+
+5. Backup
+---------
+
+The data is in the database geniuscut. The API keeps no local state: the database backup is enough.
+
+SQL Server's file path inside the container is /var/opt/mssql. The command below creates a full backup in a folder inside the container, which is mounted as the stack's data/ folder on the host.
+
+    docker exec mon_mssql_express bash -c 'mkdir -p /var/opt/mssql/backup && SQLCMD=$(ls /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd | head -1); "$SQLCMD" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -Q "BACKUP DATABASE geniuscut TO DISK = N'"'"'/var/opt/mssql/backup/geniuscut_$(date +%Y%m%d_%H%M).bak'"'"' WITH INIT, COPY_ONLY"'
+
+Copy the backup out of the container and keep it. Always check the file with:
+
+    docker exec mon_mssql_express bash -c 'SQLCMD=$(ls /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd | head -1); "$SQLCMD" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -Q "RESTORE VERIFYONLY FROM DISK = N'"'"'/var/opt/mssql/backup/FILE_NAME.bak'"'"'"'
+
+The backup command and the check were tested in a temporary folder inside the container. The restore (RESTORE DATABASE) has not been tested yet: test it on a test database before using it in an emergency.
+
+6. Checks after an intervention
+-------------------------------
+
+Run the regression suites. They need no external libraries and delete the data they create.
+
+    cd <cartella del progetto>
+    python3 tests/regression_backend.py      # expected: 62/62
+    python3 tests/regression_lifecycle.py    # expected: 52/52
+    curl -s http://localhost:8080/api/audit/verify   # expected: "valid":true
+
+The audit/verify check recomputes the hash chain of the audit log and of the access log. Rows without a hash, written before the chain was introduced, are counted separately as "legacy" and are not verified.
+
+7. Troubleshooting
+------------------
+
+Symptom  Probable cause  Action
+curl on /api/health gets no answer  API container not started or still compiling  docker logs opengencut-api; wait 45 seconds
+log: MSSQL_PASSWORD non impostata  MSSQL_SA_PASSWORD not exported before docker compose up  repeat the export in step 3.3
+health 503 with "db":"error"  SQL Server not listening  docker ps, docker logs mon_mssql_express; check port 1433
+log: Invalid object name 'dbo.xxx'  schema not applied or outdated  apply db/schema.sql again (step 3.2)
+500 internal_error on a route  internal error: the detail is only in the log  docker logs opengencut-api \  grep errore
+409 conflict on a configuration  key already present in the registry  choose another key
+409 conflict on a limit  a limit already exists for that agent-resource pair  change the existing limit
+409 invalid_state on deploy or promotion  agent suspended or retired, or evaluation missing or failed  reactivate the agent or record a passed evaluation for the version
+/check answers agent_retired  agent retired: retirement is permanent  no action possible: register a new agent
+/check answers approval_required  sensitive pair without approval  approve the request indicated in approval_id (Integrations page)
+/api/audit/verify with "valid":false  altered row: broken_at_id shows the first inconsistent row  do not change the database by hand; keep the backup and report
+the GUI does not open  missing file in the web/ folder or container without the volume  check the volume ../web:/web:ro in the compose file
+port 8080 busy  another service on the same port  change the port as in section 4
+
+To see the requests received by the API: docker logs -f opengencut-api. Each request shows method, path and duration.
+
+8. Known limits of version 0.1
+------------------------------
+
+- No authentication: anyone who reaches port 8080 can change everything. Use only on a controlled network.
+- The cost of a call is declared by whoever sends it, not measured by the system.
+- Restoring a backup has not been verified yet (see section 5).
+- Approvals do not expire over time.
+- Wrong-type errors in the JSON body expose the parser's technical text (to be fixed).
+
+9. Components of points 4-8 and of identity
+-------------------------------------------
+
+The functions below live in the same opengencut-api container, with their own tables in db/schema.sql. They need no additional services. The pages are in alpha version.
+
+Area  Main routes  Tables  Declared limits
+Compliance (point 4)  /api/compliance/...: data security per resource, policies, frameworks and controls, assessments per agent, /overview  resource_security, compliance_policy, compliance_framework, compliance_control, agent_control_assessment  control titles are summaries to be validated by the compliance officer; the seed is not the regulatory text
+Guardrails (point 5)  /api/guardrails/...: CRUD, evaluate, events, summary  guardrail, guardrail_event  detection with rules and regular expressions, not AI models; the log contains no text, only length and SHA-256
+Evaluation (point 6)  /api/evaluation/...: traces, rules, scores, summary, violations  eval_trace, eval_trace_step, eval_rule, eval_violation, eval_score  no automatic judgement with a model (scores come from an external judge); no OTLP ingestion
+Marketplace (point 7)  /api/marketplace/...: listings, requests, approve, reject, provision  marketplace_listing, marketplace_request  a request needs a listed listing with an approved review; provisioning happens only once
+FinOps (point 8)  /api/finops/...: outcomes, agent view, summary  finops_outcome (plus usage_log and the agent's monthly cost)  amounts in EUR; USD agents are not added up and stay separate, with no exchange rate
+Identity per agent  /api/identity/agents/{id}, /revoke; /api/integrations/check denies with agent_revoked  identity_id and identity_revoked_at columns on agent  revocation is permanent: a second revocation returns 409
+
+The agent's framework field is free text, at most 100 characters, used by the marketplace and by the FinOps view.
+
+9.1 Checks after an intervention
+
+Besides the suites of point 3, also run:
+
+    python3 tests/regression_compliance.py    # expected: 55/55
+    python3 tests/regression_guardrails.py    # expected: 59/59
+    python3 tests/regression_evaluation.py    # expected: 38/38
+    python3 tests/regression_marketplace.py   # expected: 34/34
+    python3 tests/regression_finops.py        # expected: 30/30
+    python3 tests/regression_identity.py      # expected: 14/14
+
+Evaluation rules are global, with one instance per type: the suites remove them at the start and at the end.
+
+9.2 Troubleshooting for these areas
+
+Symptom  Probable cause  Action
+409 conflict on a policy or framework  name or code already present  choose another name or code
+409 conflict on an evaluation rule  a rule of that type already exists  change the existing rule
+409 invalid_state on a marketplace request  listing not published or with a review not approved  complete the review and publish the listing
+409 invalid_state on provisioning  request not approved, or already provisioned  check the request status
+/check answers agent_revoked  identity revoked: revocation is permanent  no action possible: register a new agent
+400 on FinOps with a date  date not in YYYY-MM-DD format, or range inverted  correct the dates
+400 on guardrail evaluation  text over 100,000 characters, or invalid direction  shorten the text or use input / output
+
+9.3 Declared limits of these areas
+
+- No authentication in any area.
+- Guardrail detection uses rules and regular expressions: it can err in both directions.
+- Evaluation judgements come only from an external judge.
+- Costs in EUR; USD agents are not added up.
+- Identity revocation is permanent.
+
+10. Users, roles and credentials
+--------------------------------
+
+On first start the database creates the user admin with a default initial password, which must be changed at the first login (the password is not written in this manual). Every other API operation requires a session (cookie gencut_session).
+
+Roles: admin (everything, including user management), manager (compliance manager: creates, edits, approves), operator (creates and edits, does not approve), auditor (read-only, with audit trail and access log), viewer (read-only on registry and metrics), integration (only the agent call routes). Details are in docs/API.txt, section Security.
+
+User management (admin only): GET /api/users, POST /api/users, PUT /api/users/{id}, DELETE /api/users/{id}, POST /api/users/{id}/reset-password. A temporary password is shown only once; the user changes it at first login.
+
+Lockout: five failed attempts within ten minutes for the same user block the login (429) for as long as the failures stay in the window. To unlock a user earlier, wait for the window to expire.
+
+10.1 Credentials for the regression suites
+
+The suites contain no credentials. Before running them:
+
+    export GENCUT_ADMIN_PASSWORD='...'   # new admin password, at least 8 characters
+    export GENCUT_TEST_PASSWORD='...'    # password of the test user qa-tester
+    python3 tests/setup_test_user.py     # once only: creates the test user
+    export GENCUT_TEST_PASSWORD='...'    # in every shell before running the suites
+
+Passwords must not be written into project files or into the diary. tests/regression_security.py also requires GENCUT_ADMIN_PASSWORD.
+
+10.2 Declared limits
+
+- HTTPS is available on port 8443 with a self-signed laboratory certificate (see section 11). In production a certificate issued by a recognised authority is needed.
+- No password recovery by email: the reset is done by an admin.
+- The API key of a chat provider stays in the browser, only in the page field; the backend does not store it.
+
+11. HTTPS with proxy and Secure cookie
+--------------------------------------
+
+The server listens in clear text on port 8080. An nginx proxy (container opengencut-https, configuration docker/nginx.conf) listens over HTTPS on port 8443 and forwards to the API, adding the header X-Forwarded-Proto: https.
+
+- The certificate in docker/tls/ is a self-signed laboratory certificate: the browser reports it as not trusted. In production it must be replaced by a certificate issued by a recognised authority.
+- When the request arrives over HTTPS (directly or through the proxy), the session cookie gencut_session has the Secure attribute, in addition to HttpOnly and SameSite=Strict. Over HTTP it has no Secure attribute.
+- Private keys and certificates must never be copied outside the project or committed to repositories.
+
+Check:
+
+    curl -sk https://localhost:8443/api/health      # expected: response with status 200
+
+12. Chat and model proxy
+------------------------
+
+- POST /api/chat/complete talks to OpenAI or Anthropic through the backend. The backend checks the agent's access to the resource, applies guardrails to the last user message, calls the provider with a 60-second timeout, applies guardrails to the reply and records the call in monitoring (outcome, latency, tokens, cost).
+- POST /api/gateway/call with a resource of type llm_model does the same, with the chat fields.
+- The API key is never stored, written to logs, written to the audit trail or returned. It is used only for the single provider call. The message text is not stored: the guardrail register keeps only length and hash.
+- Provider error: 502 provider_error, with the error message of the call.
+- The access check uses a cost estimated in advance, before the call.
+
+Declared limits: guardrails apply to the last user message, not to the history; max_tokens is fixed at 1024.
+
+13. MCP servers and tools
+-------------------------
+
+- An MCP server is a resource of type mcp_server with its endpoint. Tools are registered by hand or with synchronisation, which reads the list from the server with tools/list (JSON-RPC over HTTP).
+- To use a tool, an agent must have the agent-server pair in the allowlist and an entry for the tool (/api/integrations/tool-allowlist). Without an entry the response is tool_not_allowed.
+- A tool can require its own approval, in addition to the pair's approval.
+- POST /api/gateway/call with tool and arguments runs tools/call.
+- Order of checks: resource active, agent, resource allowlist, tool entry, approval, limits, guardrails on the arguments, call, guardrails on the result. Valid approvals are reserved and released if the call does not take place.
+- The register contains no arguments and no result: only length and hash.
+
+Declared limits: only JSON-RPC over HTTP (tools/list and tools/call); no stdio, no MCP resources or prompts. Synchronisation does not delete tools that have disappeared from the server.
+
+Testing with the test server (see the header of tests/regression_mcp.py): the suite needs a fake MCP server started on the Docker network.
+
+14. Inactive agents
+-------------------
+
+GET /api/agents/inactive?days=N lists active agents with no monitoring calls, access decisions or traces in the last N days (default 30). Each row has the date of the last activity, or null if the agent has never had any activity. The registry shows the same information in the Activity column.
+
+15. OpenTelemetry ingestion (OTLP/JSON)
+---------------------------------------
+
+POST /api/evaluation/otlp?agent_id=N accepts OTLP/JSON (resourceSpans), with a maximum of 5 MB, 5000 spans and 500 traces per batch. Each OpenTelemetry trace becomes an evaluation trace:
+- outcome: partial if a step is in error, failure if the root span is in error, otherwise success;
+- steps: one per span, with type from gencut.step_type or inferred;
+- tokens from gen_ai.usage.input_tokens and gen_ai.usage.output_tokens; goal from gencut.goal_met; cost from gencut.cost.
+
+Text attributes (prompts, replies) are neither read nor stored. Traces already present are skipped. Limits: JSON only, not protobuf; no gRPC endpoint.
+
+16. Python SDK
+--------------
+
+The file sdk/opengencut.py is a client that uses only the Python standard library. It offers: login, logout, check (access check), record_call (call recording), guard, guard_input, guard_output (guardrails). Blocking violations raise the exception Blocked; platform errors raise OpenGenCutError.
+
+The client keeps the session in memory: it does not save credentials to disk. Credentials must be supplied by the application using the client, through environment variables or a secrets manager, never written into code.
+
+Example:
+
+    from opengencut import Client, Blocked
+    c = Client("https://localhost:8443")
+    c.login(user, password)   # credentials from the environment, not in the code
+    c.guard_input(agent_id=AGENT_ID, text=message)
+
+17. In-app help and navigation
+------------------------------
+
+- Every page has the same navigation bar (web/nav.js): Agent registry, Integrations, Lifecycle, Compliance, Guardrails, Evaluation, Marketplace, FinOps, Chatbot test, Info, Help and, for the administrator only, Users. The user name at the bottom of the bar leads to the Account page.
+- The Help page (/help.html) explains the platform sections. The Info page (/about.html) describes the purpose of the project.
+- Without a session, every page leads to /login.html. With a password to change, it leads to /account.html.
+- The chosen language is kept in the browser. Some pages (for example chat, guardrails and evaluation) have the language selector.
+
+18. Declared limits of the new functions
+----------------------------------------
+- No multi-factor authentication; no password recovery by email.
+- Guardrail detection uses rules and regular expressions, not AI models.
+- Evaluation judgements come only from an external judge.
+- Costs in EUR; agents in USD are not added up without an exchange rate.
+- MCP servers: only JSON-RPC over HTTP.
+- OTLP: only JSON.

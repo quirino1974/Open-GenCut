@@ -1,0 +1,258 @@
+OPEN-GENCUT - USER GUIDE
+------------------------
+
+Autore: Quirino Scaramastra
+
+Version: draft v0.1, 2026-11-07. Audience: people who use the platform to register and govern agents.
+Status: draft; translations in docs/manuali/en, fr, de.
+
+The pages are available in four languages: Italian, English, French and German. Choose the language from the selector in the top bar.
+
+The three pages are:
+- Registry: /index.html, with the sections Agents, Configurations, Metrics, Audit and Help.
+- Integrations: /integrations.html, with the sections Approvals, Resources, Allowlist, Limits, Check access, Access log and Help.
+- Lifecycle: /lifecycle.html, with the sections Evaluations, Overview, Versions, Deploy and promotions, Monitoring and Help.
+
+Button names are those shown in the English interface. For automation, the equivalent API call is given in brackets.
+
+1. Registry (point 1)
+---------------------
+
+The registry holds the agents and their configurations, either global or per agent.
+
+Agents
+
+- In the Agents section, the Add agent button opens the "New agent" form. The required field is the name; choose the origin among Internal, Marketplace and Third party.
+- To change an agent, use the Edit button on its row; to delete it, Delete, then Confirm deletion. Deletion is permanent and is recorded in the Audit.
+- Status: Registered, Active, Suspended, Retired. Status is changed from the lifecycle (section 3), not from here.
+- Monthly cost and currency (EUR or USD). The total in the metrics is in EUR; amounts in USD are shown separately.
+- Transparency: the field "Interacts with people" says whether the agent interacts with people. In that case, fill in "Interaction language" (for example it, en-GB).
+- Save with Save; cancel with Cancel. Changing an agent replaces all its fields: send the ones you do not change as well.
+- Agents can be filtered with the search by name or owner and with the menus All origins and All statuses.
+
+(API: /api/agents)
+
+Configurations
+
+- In the Configurations section, the Add configuration button opens the "New configuration" form.
+- A configuration has a key that is unique across the whole registry, a value and a scope: Global or Agent. For the Agent scope, choose the agent.
+
+(API: /api/configurations)
+
+Metrics and Audit
+
+- The Metrics section shows the number of agents (total and active), by origin and by status, and the total monthly cost.
+- The Audit section shows every change, with date, user, action, entity and detail. Each row is linked to the previous one with a hash: the chain check is at /api/audit/verify.
+
+2. Integrations (point 2)
+-------------------------
+
+This is where you control which agents may use which external resources: LLM models, APIs, MCP servers and data sources.
+
+Resources
+
+In the Resources section, the Add button registers a resource with a type (LLM model, API, MCP server, Data source), a name and an optional endpoint. A disabled resource cannot be used by any agent. Change it with Edit and delete it with Delete.
+
+Allowlist
+
+In the Allowlist section, the Allow resource button gives an agent permission to use a resource. Without this row, access is denied (not_allowed).
+
+A row can be marked as Approval required (sensitive). In that case every access needs an approval (section 2.4).
+
+Limits
+
+In the Limits section, the New limit button sets, for an agent-resource pair:
+- the maximum number of calls per day (in UTC), field "Max calls/day";
+- the maximum cost per month, field "Max cost/month", in the chosen currency.
+
+An empty field = no limit. An access beyond the limit is denied (daily_call_limit or monthly_cost_limit).
+
+Check access
+
+The Check access section simulates an access request with the Check and record button. The result is Allowed or Denied, with the reason. The reasons, in the order they are checked:
+1. resource_disabled: the resource is disabled.
+2. agent_retired: the agent is retired.
+3. agent_not_active: the agent is not active (suspended or registered).
+4. not_allowed: the pair is not in the allowlist.
+5. approval_required: the pair is sensitive and an approval is missing.
+6. daily_call_limit and monthly_cost_limit: a limit has been exceeded.
+
+A denied access does not consume budget. An allowed access records the declared cost.
+
+The Access log section shows every decision, allowed and denied, with its reason.
+
+Approvals (requirement R1)
+
+For sensitive pairs:
+- When an access is denied with approval_required, the system opens a pending request by itself and shows its number.
+- In the Approvals section, choose Approve or Reject. A request that is already approved or rejected cannot be changed. From the same section you can create a request with Request approval, entering the justification.
+- An approval is valid for one access only: after that access the status becomes "Used", and the next access needs a new approval.
+
+(API: /api/integrations/allowlist, /api/integrations/limits, /api/integrations/check, /api/integrations/approvals)
+
+3. Lifecycle (points 3 and 4)
+-----------------------------
+
+This is where you manage an agent's life, from versions to retirement.
+
+Agent states
+
+- Registered → Active → Suspended (and back to Active): the Suspend button suspends, Reactivate reactivates; you can do this at any time.
+- Retired: the Retire button asks for confirmation ("Retire the agent?"). Retirement is permanent. After retirement the agent receives no more accesses, deployments or promotions.
+
+Versions
+
+In the Versions section, the New version button registers a version of the agent (field "Version label"). The same version cannot be registered twice.
+
+Environments, deployments and promotions
+
+There are three environments: Development, Staging and Production. Each environment has a current version.
+- Deploy (section "Deploy and promotions"): puts a registered version into an environment.
+- Promote: copies the current version of Development into Staging, and of Staging into Production. It asks for confirmation ("Promote the version?").
+- Every deployment and promotion is written to the log, with date, version, source environment and note.
+
+A suspended or retired agent receives neither deployments nor promotions.
+
+Evaluations (requirement R3)
+
+In the Evaluations section, the Record evaluation button records the result for a version: "passed" or "failed".
+
+Before moving to Staging or Production, a passed evaluation is required for the version being moved. The rule applies to the latest evaluation recorded:
+- if the latest evaluation is "failed", the move is blocked, even if an earlier one passed;
+- if the latest evaluation concerns a different version, the move is blocked.
+
+Development does not require evaluations.
+
+Monitoring
+
+The Monitoring section shows, for an environment and a period: calls, errors and error rate, average and maximum latency, tokens and cost. Calls are recorded by the system that uses the agent. The Refresh button reloads the data.
+
+(API: /api/lifecycle/agents/{id}, /versions, /deploy, /promote, /evaluations, /performance, /suspend, /reactivate, /retire)
+
+4. Frequently asked questions
+-----------------------------
+
+Why is a deployment refused with "agent suspended"?
+A suspended agent does not receive new versions. Reactivate it with Reactivate, then try again.
+
+Why is the promotion to Staging blocked?
+A passed evaluation is missing for the version to move. Record a "passed" evaluation with Record evaluation and try again.
+
+I retired an agent by mistake. Can I reactivate it?
+No. Retirement is permanent. Register a new agent.
+
+Why is an access denied with "approval required" even though I already approved it?
+An approval is valid for one access only. After use, the request becomes "Used": a new approval is needed.
+
+The total cost does not include an agent.
+Agents in USD are not added to those in EUR without an exchange rate. They are shown separately.
+
+The Audit shows "legacy" on some rows.
+These rows were written before the hash chain was introduced. They cannot be verified, but they are kept.
+
+5. Known limits
+---------------
+
+- There is no login with user and password: whoever uses the page is considered authorised. Use only on a controlled network.
+- The cost of a call is the one declared by whoever sends it.
+- Approvals do not expire.
+
+6. Additional pages (points 4-8 and identity)
+---------------------------------------------
+
+All the new pages are marked Alpha version - do not use in production: the title at the top says so. They have the same language selector and the same "Agent registry" link.
+
+- Compliance: /compliance.html, with the sections Overview, Policies, Agent, Data security, Controls and Help.
+- Guardrails: /guardrails.html, with the sections Rules, Test, Log, Summary and Help.
+- Evaluation: /evaluation.html, with the sections Traces, Summary, Rules, Judgements and Help.
+- Marketplace: /marketplace.html, with the sections Listings, Requests and Help.
+- FinOps: /finops.html, with the sections Agent, Summary, Record outcome and Help.
+- Identity: the "Identity" tab on the Lifecycle page.
+
+6.1 Compliance (point 4)
+
+- AI gateways are resources of type "AI gateway" (value ai_gateway), registered from the resource type menu on the Integrations page.
+- Data security: for each resource you set the classification (Public, Internal, Confidential, Restricted), whether the data is encrypted at rest and in transit, whether personal data is allowed, and the retention in days. Without a record, the defaults apply (Internal, no encryption, no personal data).
+- Policies: the Add button (dialog "New policy") creates a rule with one of four types: transparency required, evaluation before production, maximum classification, approval for personal data. The parameter is in JSON. On the Agent tab you see, for each active policy, whether the agent meets it and the reason.
+- Controls: the Controls section shows the library of frameworks (for example GDPR, AI Act, ISO 27001, ISO 42001) with their controls. The New framework and New control buttons add them. The initial data must be validated by the compliance officer.
+- Control assessment: for each agent, every control has a result: Compliant, Non-compliant, Not assessed, Not applicable, with an evidence note.
+- Overview: for each framework it shows the controls, the percentage of compliant agents and the failing policies.
+
+Declared limit: the control titles are summaries to be validated; they are not the regulatory text.
+
+6.2 Guardrails (point 5)
+
+- Rules: the Add button creates a guardrail with one of the types: personal-data masking (pii_mask), personal-data blocking (pii_block), keyword blocking, maximum length, per-minute rate limit, prompt injection (prompt_injection). Scope: Global, Agent or Resource.
+- Test: the Evaluate button applies the active rules to a test text, as input or output, and shows the result (Allowed, Masked, Blocked) with the violations.
+- Log: each evaluation is recorded with result, violations, text length and SHA-256 fingerprint. The log does not contain the text.
+- Summary: counts by result and by type in the last 24 hours.
+
+A block prevails over a mask. With the Blocked result, the returned text is empty. The personal data recognised are: email, phone number, Italian tax code, IBAN (checked with mod 97), card number (checked with the Luhn algorithm).
+
+Declared limit: detection uses rules and regular expressions, not artificial-intelligence models. It can err in both directions: treat it as a first filter.
+
+6.3 Evaluation (point 6)
+
+- Traces: the Record trace button records an execution: trace identifier, outcome (success, failure, partial), goal reached, cost and steps. Each step has a type (llm, tool, reasoning, memory), a name, tokens, latency and result. The text of the steps is never stored.
+- Rules: the New rule button creates one rule per type, and only one per type: maximum tokens per trace, maximum latency, maximum error rate, maximum drift, maximum memory age in days. A rule generates violations when a trace exceeds it.
+- Summary: success rate, goal rate, average latency, error rate, number of violations, average score, drift indication and stale memory steps.
+- Judgements: the Record judgement button records a score from 1 to 5 with the judge's name (default "manual"). Judgements come from an external judge, a person or a tool: the platform does not produce them.
+
+Declared limits: no automatic judgement with a model; no ingestion in OTLP format. Drift compares the last 10 traces with the previous 10.
+
+6.4 Marketplace (point 7)
+
+- Listings: the Add button publishes a third-party agent: provider, name, version, framework, price model (free, subscription, per use), price, currency, certification, security review (Pending, Approved, Rejected) and status (Listed, Hidden). Change it with Edit, delete it with Delete.
+- Requests: the Request button asks to adopt a listing. It is allowed only if the listing is listed and its review is approved.
+- Decision: Approve or Reject a pending request. Provision creates the agent in the registry with origin marketplace, status registered, and the provider, version and framework of the listing. A request can be provisioned only once.
+
+6.5 FinOps (point 8)
+
+- Record outcome: the Record button records an outcome (success, failure, partial) with the value in EUR and the period.
+- Agent: with a date range, it shows usage cost, fixed cost, total cost, value, ROI, cost per success and the outcome counts.
+- Summary: totals by framework or by origin for the date range.
+
+Conventions: ROI = (value - cost) / cost, empty if the cost is zero. Cost per success = total cost / successes, empty without successes. Amounts in USD are not added to amounts in EUR: the fixed cost of a USD agent is shown separately.
+
+6.6 Identity per agent
+
+In the Identity tab of the Lifecycle page you see the agent's identifier (a UUID assigned at creation) and its status. The Revoke identity button asks for confirmation: revocation is permanent and the agent can no longer access any resource. After revocation the button is disabled.
+
+Suspension blocks the agent immediately; reactivation must be requested explicitly. They are two different mechanisms: revoking an identity cannot be undone.
+
+7. Access and security
+----------------------
+
+- Login: on the login page enter user name and password. After five failed attempts within ten minutes, login for that user is blocked for a while; the message does not reveal whether the name exists.
+- First login and password change: if the password is temporary, the platform leads to the Account page and asks you to change it before anything else. The new password must be at least 8 characters and at most 72, and must not be the same as the user name.
+- Profile: the Account page lets you change your password. From the user name at the bottom of the bar you reach the Account page, and from there you can sign out.
+- Roles: administrator (everything, including user management); compliance manager (creates, edits, approves); operator (creates and edits, does not approve); auditor (read-only, with audit trail and access log); viewer (read-only on registry and metrics); integration system (only the agent call routes, no pages).
+- Users (administrator only): the Users page creates users, changes roles, deletes a user (not yourself, nor the last active administrator) and generates a temporary password for a reset. The temporary password is shown only once: give it to the user, who changes it at first login.
+- Limits: no recovery by email (an administrator does the reset); HTTPS with the laboratory certificate (see the operations manual).
+
+8. Chat with the models
+-----------------------
+
+- The Chat page talks to an OpenAI or Anthropic model. Choose the provider, the model, the agent and the provider resource, and enter the API key.
+- The API key stays in the page field, in memory: the platform does not store it, does not log it and never shows it. When you close the page, enter it again.
+- Each reply shows the decision (allowed, denied, blocked), the tokens and the latency. The platform does not store the message text.
+- If a guardrail blocks the message or the reply, the decision shown is "blocked".
+
+9. MCP servers and tools
+------------------------
+
+- On the Integrations page an MCP server is a resource of the MCP server type, with its address. The server's tools are registered by hand or with synchronisation, which reads the list from the server.
+- Permission for a tool is granted to an agent in the tool allowlist. Without permission the call is denied (tool_not_allowed).
+- On the Try a call tab choose agent, resource and tool, enter the arguments in JSON, and see the decision and the result.
+
+10. Inactive agents
+-------------------
+
+In the registry, the Activity column shows whether the agent is active, inactive or never active, with the date of the last event. An active agent with no calls, access decisions or traces in the last 30 days is flagged as inactive.
+
+11. Navigation and in-app help
+------------------------------
+
+- The bar at the top is the same on every page: you move from one section to another without going back to the registry.
+- The Help page explains the sections; the Info page describes the project.
+- The chosen language is kept in the browser. Some pages (for example chat, guardrails and evaluation) have the language selector.

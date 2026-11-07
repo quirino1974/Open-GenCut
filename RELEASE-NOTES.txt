@@ -1,0 +1,32 @@
+NOTE DI RILASCIO - OPEN-GENCUT
+------------------------------
+
+Autore: Quirino Scaramastra
+
+0.1 ALFA - 2026-11-07 - laboratorio, non per la produzione
+---------------------------------------------------------
+Prima versione di laboratorio. Funzioni:
+- registro unificato degli agenti (interni, di terze parti, marketplace), configurazioni, metriche,
+  tracciamento con dettaglio tradotto, rilevamento degli agenti senza attivita', scoperta da manifesti;
+- integrazione: risorse (modelli LLM, API, server MCP, fonti dati, gateway AI), allowlist, limiti,
+  approvazioni umane, verifica degli accessi, registro accessi, strumenti MCP con permessi per strumento,
+  proxy /api/gateway/call;
+- ciclo di vita: versioni, deploy e promozioni, valutazioni, sospensione, riattivazione, dismissione,
+  identita' per agente con revoca;
+- conformita': politiche, misure sui dati, quadri e controlli, valutazione per agente, aggiornamento dei
+  quadri da bundle;
+- guardrail su ingresso e uscita;
+- valutazione: tracce, regole, deriva, deviazioni nei ragionamenti, giudizio con un modello, OpenTelemetry;
+- marketplace e FinOps;
+- chat verso OpenAI e Anthropic attraverso il proxy, senza salvare la chiave;
+- SDK Python e adattatori per i framework di agenti;
+- accesso con utenti e profili, sessioni cifrate su HTTPS, cambio password, reset da amministratore;
+- interfaccia in italiano, inglese, francese e tedesco, tema chiaro e scuro, guida in linea.
+
+Limiti noti:
+- certificato HTTPS auto-firmato, solo per il laboratorio;
+- scoperta automatica solo da manifesti, non da rete;
+- adattatori per i framework non provati con i pacchetti reali;
+- giudizio automatico con un modello: serve una chiave di fornitore;
+- trasporti MCP solo HTTP; risorse e prompt MCP non inclusi;
+- verifica visiva del tema da completare nel browser.

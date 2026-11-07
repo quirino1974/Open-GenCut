@@ -1,0 +1,39 @@
+CHAT CLIENT VERSO OPENAI E ANTHROPIC, REGISTRATA SU OPEN-GENCUT
+------------------------------------------------------------------------
+
+Autore: Quirino Scaramastra
+
+Principio
+---------
+Le chiamate ai fornitori passano dal backend, non dal browser: la chiave API non viene salvata né registrata, e ogni chiamata passa dai controlli della piattaforma (accesso, limiti, guardrail, monitoraggio).
+
+Backend: `POST /api/chat/complete`
+---------------------------------------------
+Body:
+- provider: anthropic | openai
+- api_key: chiave del fornitore, usata solo per la chiamata; non salvata, non loggata, non restituita
+- model: nome del modello (es. claude-haiku-5-5, o il modello OpenAI scelto)
+- system (opzionale), messages: [{role: user|assistant, content}]
+- agent_id, resource_id: agente registrato e risorsa del fornitore (kind llm_model)
+- environment (opzionale, default production)
+
+Ordine di esecuzione:
+1. check su agente e risorsa (come /api/integrations/check). Se negato: 200 con {decision: "denied", reason}, nessuna chiamata al fornitore, nessun costo.
+2. Guardrail in ingresso sull'ultimo messaggio utente (/api/guardrails/evaluate, direction input). Se block: 200 con {decision: "blocked", ...}. Se mask: il testo mascherato sostituisce quello inviato.
+3. Chiamata al fornitore:
+   - Anthropic: POST https://api.anthropic.com/v1/messages, header x-api-key, anthropic-version: 2023-06-01, max_tokens fisso (es. 1024); usage da usage.input_tokens e usage.output_tokens.
+   - OpenAI: POST https://api.openai.com/v1/chat/completions, header Authorization: Bearer; usage da usage.prompt_tokens e usage.completion_tokens.
+   Timeout 60 secondi.
+4. Guardrail in uscita sul testo della risposta. Se block: la risposta non viene restituita.
+5. Registrazione: una chiamata di monitoraggio (/api/lifecycle/agents/{id}/calls) con esito, latenza, token e costo; il costo è zero salvo prezzi forniti nel body (price_input_per_1k, price_output_per_1k, facoltativi).
+
+Risposta 200: {decision: "allowed"|"denied"|"blocked", reason, text, input_tokens, output_tokens, latency_ms, guardrail: {decision, violations}}.
+Errori del fornitore: 502 {error:"provider_error", message} senza la chiave.
+
+Scelte attese: la chiave non compare mai nei log né nell'audit; nessuna persistenza dei messaggi; il testo dell'utente non viene salvato (solo lunghezze e hash, come per i guardrail).
+
+Interfaccia: `web/chat.html`
+-------------------------------------
+- Configurazione: fornitore, modello, chiave API (in memoria, nessun salvataggio automatico), prompt di sistema.
+- Registrazione: crea su Open-GenCut l'agente (origine interno, interagisce con persone, lingua scelta), la risorsa del fornitore (kind llm_model), la voce di allowlist; salva gli id per le chiamate successive.
+- Chat: conversazione a bolle, indicatore di decisione (consentito, negato, bloccato), token e latenza per risposta.

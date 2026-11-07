@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open-GenCut - Chat</title>
+<style>
+  :root { --bg:#f5f7fa; --panel:#fff; --ink:#1c2530; --muted:#5d6b7a; --accent:#1f6feb; --accent-ink:#fff; --danger:#c62828; --ok:#2e7d32; --warn:#b26a00; --line:#d9e0e7; --bubble-u:#1f6feb; --bubble-a:#eef2f7; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --accent-ink:#0b1220; --danger:#ef5350; --ok:#66bb6a; --warn:#ffb74d; --line:#2a3644; --bubble-u:#4c8dff; --bubble-a:#213040; }
+  }
+  :root[data-theme="dark"] { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --accent-ink:#0b1220; --danger:#ef5350; --ok:#66bb6a; --warn:#ffb74d; --line:#2a3644; --bubble-u:#4c8dff; --bubble-a:#213040; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,"Segoe UI",Roboto,sans-serif; }
+  button, .btn, select, input, textarea { font:inherit; color:var(--ink); }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; padding:14px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:20px; margin:0; } header h1 span { color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
+  .btn { border:1px solid var(--line); background:var(--panel); padding:8px 14px; border-radius:999px; cursor:pointer; }
+  .btn.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
+  select, input, textarea { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; max-width:100%; }
+  main { padding:16px; max-width:900px; margin:0 auto; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+  .grid label { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; }
+  .grid select, .grid input, .grid textarea { width:100%; }
+  .help { color:var(--muted); font-size:13px; }
+  .msg { padding:10px 12px; border-radius:8px; border:1px solid var(--line); margin-bottom:12px; }
+  .msg.err { color:var(--danger); border-color:var(--danger); } .msg.ok { color:var(--ok); border-color:var(--ok); }
+  #chat { display:flex; flex-direction:column; gap:10px; min-height:260px; max-height:55vh; overflow-y:auto; padding:8px; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+  .bubble { max-width:82%; padding:10px 14px; border-radius:14px; white-space:pre-wrap; word-break:break-word; }
+  .bubble.user { align-self:flex-end; background:var(--bubble-u); color:var(--accent-ink); border-bottom-right-radius:4px; }
+  .bubble.bot { align-self:flex-start; background:var(--bubble-a); border-bottom-left-radius:4px; }
+  .bubble .meta { display:block; font-size:12px; opacity:.75; margin-top:4px; }
+  .bubble.note { align-self:center; background:transparent; border:1px dashed var(--line); color:var(--muted); font-size:13px; }
+  .composer { display:flex; gap:8px; margin-top:10px; }
+  .composer textarea { flex:1; min-height:48px; resize:vertical; }
+  .alpha-tag { display:inline-block; margin-left:6px; padding:1px 8px; border-radius:6px; background:#f9a825; color:#1c2530; font-size:12px; font-weight:700; vertical-align:middle; letter-spacing:.04em; }
+  .alpha-badge { font-size:12px; color:var(--danger); border:1px solid var(--danger); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+  @media (max-width:640px) { .bubble { max-width:94%; } }
+</style>
+<link rel="stylesheet" href="/theme.css?v=1">
+</head>
+<body>
+<header>
+  <h1>Open-GenCut <span>AMP</span> <span class="alpha-tag">Alfa</span> - <span data-i18n="title">Chat</span></h1>
+  <span class="alpha-badge" data-i18n="alpha">Versione alfa - non usare in produzione</span>
+  <select id="lang" aria-label="Language" style="width:auto">
+    <option value="it">Italiano</option><option value="en">English</option>
+    <option value="fr">Français</option><option value="de">Deutsch</option>
+  </select>
+</header>
+<div id="gc-nav"></div>
+<main>
+  <div id="notice"></div>
+  <p class="help" data-i18n="desc" style="font-size:14px"></p>
+
+  <div class="card">
+    <h3 style="margin-top:0" data-i18n="h.setup">Configurazione</h3>
+    <div class="grid">
+      <div><label for="provider" data-i18n="f.provider">Fornitore</label>
+        <select id="provider"><option value="anthropic">Anthropic</option><option value="openai">OpenAI (ChatGPT)</option></select></div>
+      <div><label for="model" data-i18n="f.model">Modello</label><input id="model" value="claude-haiku-5-5"></div>
+      <div><label for="apikey" data-i18n="f.apikey">Chiave API</label><input id="apikey" type="password" autocomplete="off"></div>
+      <div><label for="agent" data-i18n="f.agent">Agente registrato</label><select id="agent"></select></div>
+      <div><label for="resource" data-i18n="f.resource">Risorsa del fornitore</label><select id="resource"></select></div>
+    </div>
+    <div style="margin-top:10px"><label for="system" class="help" data-i18n="f.system">Prompt di sistema (facoltativo)</label>
+      <textarea id="system" rows="2" style="width:100%"></textarea></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" id="reg" data-i18n="btn.register">Registra su Open-GenCut</button>
+      <button class="btn" id="refresh" data-i18n="btn.refresh">Aggiorna elenchi</button>
+    </div>
+    <p class="help" data-i18n="help.key">La chiave API resta solo in questa pagina e va reinserita dopo un ricaricamento. Il backend la usa per la singola chiamata e non la salva.</p>
+  </div>
+
+  <div id="chat" aria-live="polite"></div>
+  <div class="composer">
+    <textarea id="input" aria-label="message" data-i18n-ph="f.message" placeholder="Scrivi un messaggio"></textarea>
+    <button class="btn primary" id="send" data-i18n="btn.send">Invia</button>
+  </div>
+  <div class="row"><button class="btn" id="clear" data-i18n="btn.clear">Nuova conversazione</button></div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var I = {
+    it: { title:"Test chatbot", desc:"Serve a provare il collegamento a ChatGPT (OpenAI) o Claude (Anthropic) attraverso Open-GenCut. Ogni messaggio passa dal controllo di accesso, dai guardrail e dal monitoraggio: il test verifica che l'agente possa usare il modello, che i messaggi vietati vengano bloccati e che ogni chiamata venga registrata. Registra prima l'agente di test, poi scrivi un messaggio.", alpha:"Versione alfa - non usare in produzione",
+      h:{setup:"Configurazione"}, f:{remember:"Ricorda la chiave su questo browser", provider:"Fornitore",model:"Modello",apikey:"Chiave API",agent:"Agente registrato",resource:"Risorsa del fornitore",system:"Prompt di sistema (facoltativo)",message:"Scrivi un messaggio"},
+      btn:{forget:"Dimentica la chiave", register:"Registra su Open-GenCut",refresh:"Aggiorna elenchi",send:"Invia",clear:"Nuova conversazione"},
+      help:{key:"La chiave API resta solo in questa pagina e va reinserita dopo un ricaricamento. Il backend la usa per la singola chiamata e non la salva."},
+      ok:"Registrato su Open-GenCut.", err:"Errore", need:"Registra prima l'agente e scegli la risorsa.", keyNeeded:"Inserisci la chiave API.", empty:"Nessun elemento.", sending:"In attesa della risposta...",
+      dec:{allowed:"Consentito",denied:"Negato",blocked:"Bloccato dai guardrail"}, rc: {"not_allowed": "Risorsa non autorizzata per questo agente", "agent_not_active": "Agente non attivo", "agent_retired": "Agente dismesso", "agent_revoked": "Identità revocata", "resource_disabled": "Risorsa disattivata", "daily_call_limit": "Limite giornaliero raggiunto", "monthly_cost_limit": "Limite di costo mensile raggiunto", "approval_required": "Approvazione richiesta", "guardrail_input": "Messaggio non consentito dai guardrail", "guardrail_output": "Risposta bloccata dai guardrail"}, reason:{denied:"Accesso negato",blocked:"Messaggio bloccato"},
+      meta:"token in {in} / out {out} - {ms} ms", bot:"Assistente", you:"Tu", newChat:"Nuova conversazione avviata." },
+    en: { title:"Chatbot test", desc:"Use it to test the connection to ChatGPT (OpenAI) or Claude (Anthropic) through Open-GenCut. Every message goes through access control, guardrails and monitoring: the test checks that the agent can use the model, that forbidden messages are blocked and that every call is recorded. Register the test agent first, then write a message.", alpha:"Alpha version - do not use in production",
+      h:{setup:"Setup"}, f:{remember:"Remember the key in this browser", provider:"Provider",model:"Model",apikey:"API key",agent:"Registered agent",resource:"Provider resource",system:"System prompt (optional)",message:"Write a message"},
+      btn:{forget:"Forget the key", register:"Register on Open-GenCut",refresh:"Refresh lists",send:"Send",clear:"New conversation"},
+      help:{key:"The API key stays only in this page and must be entered again after a reload. The backend uses it for the single call and does not store it."},
+      ok:"Registered on Open-GenCut.", err:"Error", need:"Register the agent first and choose the resource.", keyNeeded:"Enter the API key.", empty:"No items.", sending:"Waiting for the reply...",
+      dec:{allowed:"Allowed",denied:"Denied",blocked:"Blocked by guardrails"}, rc: {"not_allowed": "Resource not authorised for this agent", "agent_not_active": "Agent not active", "agent_retired": "Agent retired", "agent_revoked": "Identity revoked", "resource_disabled": "Resource disabled", "daily_call_limit": "Daily call limit reached", "monthly_cost_limit": "Monthly cost limit reached", "approval_required": "Approval required", "guardrail_input": "Message not allowed by guardrails", "guardrail_output": "Reply blocked by guardrails"}, reason:{denied:"Access denied",blocked:"Message blocked"},
+      meta:"tokens in {in} / out {out} - {ms} ms", bot:"Assistant", you:"You", newChat:"New conversation started." },
+    fr: { title:"Test chatbot", desc:"Sert à tester la connexion à ChatGPT (OpenAI) ou Claude (Anthropic) via Open-GenCut. Chaque message passe par le contrôle d'accès, les garde-fous et la supervision : le test vérifie que l'agent peut utiliser le modèle, que les messages interdits sont bloqués et que chaque appel est enregistré. Enregistrez d'abord l'agent de test, puis écrivez un message.", alpha:"Version alpha - ne pas utiliser en production",
+      h:{setup:"Configuration"}, f:{remember:"Mémoriser la clé dans ce navigateur", provider:"Fournisseur",model:"Modèle",apikey:"Clé API",agent:"Agent enregistré",resource:"Ressource du fournisseur",system:"Prompt système (facultatif)",message:"Écrivez un message"},
+      btn:{forget:"Oublier la clé", register:"Enregistrer sur Open-GenCut",refresh:"Actualiser les listes",send:"Envoyer",clear:"Nouvelle conversation"},
+      help:{key:"La clé API reste uniquement sur cette page et doit être saisie à nouveau après un rechargement. Le backend l'utilise pour un seul appel et ne la conserve pas."},
+      ok:"Enregistré sur Open-GenCut.", err:"Erreur", need:"Enregistrez d'abord l'agent et choisissez la ressource.", keyNeeded:"Saisissez la clé API.", empty:"Aucun élément.", sending:"En attente de la réponse...",
+      dec:{allowed:"Autorisé",denied:"Refusé",blocked:"Bloqué par les garde-fous"}, rc: {"not_allowed": "Ressource non autorisée pour cet agent", "agent_not_active": "Agent non actif", "agent_retired": "Agent retiré", "agent_revoked": "Identité révoquée", "resource_disabled": "Ressource désactivée", "daily_call_limit": "Limite journalière atteinte", "monthly_cost_limit": "Limite de coût mensuelle atteinte", "approval_required": "Approbation requise", "guardrail_input": "Message non autorisé par les garde-fous", "guardrail_output": "Réponse bloquée par les garde-fous"}, reason:{denied:"Accès refusé",blocked:"Message bloqué"},
+      meta:"jetons entrée {in} / sortie {out} - {ms} ms", bot:"Assistant", you:"Vous", newChat:"Nouvelle conversation commencée." },
+    de: { title:"Chatbot-Test", desc:"Dient dazu, die Verbindung zu ChatGPT (OpenAI) oder Claude (Anthropic) über Open-GenCut zu testen. Jede Nachricht durchläuft Zugriffskontrolle, Guardrails und Überwachung: Der Test prüft, ob der Agent das Modell nutzen darf, ob verbotene Nachrichten blockiert werden und ob jeder Aufruf erfasst wird. Registrieren Sie zuerst den Test-Agenten, dann schreiben Sie eine Nachricht.", alpha:"Alpha-Version - nicht in der Produktion verwenden",
+      h:{setup:"Konfiguration"}, f:{remember:"Schlüssel in diesem Browser merken", provider:"Anbieter",model:"Modell",apikey:"API-Schlüssel",agent:"Registrierter Agent",resource:"Ressource des Anbieters",system:"Systemprompt (optional)",message:"Nachricht schreiben"},
+      btn:{forget:"Schlüssel vergessen", register:"Auf Open-GenCut registrieren",refresh:"Listen aktualisieren",send:"Senden",clear:"Neue Unterhaltung"},
+      help:{key:"Der API-Schlüssel bleibt nur auf dieser Seite und muss nach einem Neuladen erneut eingegeben werden. Das Backend nutzt ihn für einen einzelnen Aufruf und speichert ihn nicht."},
+      ok:"Auf Open-GenCut registriert.", err:"Fehler", need:"Registrieren Sie zuerst den Agenten und wählen Sie die Ressource.", keyNeeded:"Geben Sie den API-Schlüssel ein.", empty:"Keine Einträge.", sending:"Warte auf die Antwort...",
+      dec:{allowed:"Erlaubt",denied:"Verweigert",blocked:"Durch Guardrails blockiert"}, rc: {"not_allowed": "Ressource für diesen Agenten nicht freigegeben", "agent_not_active": "Agent nicht aktiv", "agent_retired": "Agent außer Betrieb", "agent_revoked": "Identität widerrufen", "resource_disabled": "Ressource deaktiviert", "daily_call_limit": "Tageslimit erreicht", "monthly_cost_limit": "Monatliches Kostenlimit erreicht", "approval_required": "Freigabe erforderlich", "guardrail_input": "Nachricht durch Guardrails nicht erlaubt", "guardrail_output": "Antwort durch Guardrails blockiert"}, reason:{denied:"Zugriff verweigert",blocked:"Nachricht blockiert"},
+      meta:"Token Eingabe {in} / Ausgabe {out} - {ms} ms", bot:"Assistent", you:"Sie", newChat:"Neue Unterhaltung gestartet." }
+  };
+  var lang = "it", agents = [], resources = [], history = [];
+  var $ = function (s) { return document.querySelector(s); };
+  function t(k) { var p = k.split("."), d = I[lang], i = 0; for (; i < p.length; i++) { d = d && d[p[i]]; } return d !== undefined ? d : k; }
+  function esc(v) { return String(v === null || v === undefined ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function notice(m, k) { $("#notice").innerHTML = '<div class="msg ' + (k || "ok") + '">' + esc(m) + "</div>"; if (k !== "err") setTimeout(function () { $("#notice").innerHTML = ""; }, 3500); }
+  function fill(n, v) { return String(t(n)).replace("{in}", v.in).replace("{out}", v.out).replace("{ms}", v.ms); }
+  function forget(k) { try { localStorage.removeItem("gencut.chat." + k); } catch (e) { /* ignorato */ } }
+  function store(k, v) { try { localStorage.setItem("gencut.chat." + k, v); } catch (e) { /* ignorato */ } }
+  function load(k) { try { return localStorage.getItem("gencut.chat." + k) || ""; } catch (e) { return ""; } }
+  function api(method, path, body) {
+    var o = { method: method, headers: { "Accept": "application/json" } };
+    if (body !== undefined) { o.headers["Content-Type"] = "application/json"; o.body = JSON.stringify(body); }
+    return fetch("/api" + path, o).then(function (r) {
+      return r.text().then(function (txt) {
+        var d = null; try { d = txt ? JSON.parse(txt) : null; } catch (e) { d = null; }
+        if (!r.ok) throw new Error(t("err") + ": " + ((d && d.message) || (r.status + " " + r.statusText)));
+        return d;
+      });
+    });
+  }
+  function fail(e) { notice(e.message, "err"); }
+
+  function loadLists() {
+    return Promise.all([api("GET", "/agents"), api("GET", "/integrations/resources?kind=llm_model")]).then(function (r) {
+      agents = r[0] || []; resources = r[1] || [];
+      var saved = load("agent");
+      if (saved && !agents.some(function (a) { return String(a.id) === saved; })) { forget("agent"); saved = ""; }
+      $("#agent").innerHTML = agents.map(function (a) { return '<option value="' + a.id + '">' + esc(a.name) + "</option>"; }).join("") || '<option value="">' + esc(t("empty")) + "</option>";
+      if (saved) $("#agent").value = saved;
+      refreshResources();
+    }).catch(fail);
+  }
+  function refreshResources() {
+    var p = $("#provider").value;
+    var saved = load("res." + p);
+    if (saved && !resources.some(function (x) { return String(x.id) === saved; })) { forget("res." + p); saved = ""; }
+    $("#resource").innerHTML = resources.map(function (x) { return '<option value="' + x.id + '">' + esc(x.name) + "</option>"; }).join("") || '<option value="">' + esc(t("empty")) + "</option>";
+    if (saved) $("#resource").value = saved;
+  }
+  function endpointFor(p) { return p === "openai" ? "https://api.openai.com/v1/chat/completions" : "https://api.anthropic.com/v1/messages"; }
+  function register() {
+    var p = $("#provider").value, model = $("#model").value.trim() || "modello";
+    var ag = load("agent");
+    var step = ag ? Promise.resolve({ id: +ag }) : api("POST", "/agents", {
+      name: "Chatbot " + (p === "openai" ? "OpenAI" : "Anthropic"), description: "Chat client registrato dalla pagina chat",
+      origin: "internal", vendor: p === "openai" ? "OpenAI" : "Anthropic", version: model, owner: "Chat client",
+      status: "active", model: model, endpoint: endpointFor(p), cost_monthly: 0, currency: "EUR",
+      interacts_with_people: true, interaction_language: lang });
+    return step.then(function (a) {
+      store("agent", String(a.id));
+      var rname = "API " + (p === "openai" ? "OpenAI" : "Anthropic") + " " + model;
+      var rs = load("res." + p) ? Promise.resolve({ id: +load("res." + p) }) : api("GET", "/integrations/resources?kind=llm_model").then(function (list) {
+        var found = (list || []).filter(function (x) { return x.name === rname; })[0];
+        return found ? { id: found.id } : api("POST", "/integrations/resources", { name: rname, kind: "llm_model", endpoint: endpointFor(p), status: "enabled" });
+      });
+      return rs.then(function (res) {
+        store("res." + p, String(res.id));
+        return api("POST", "/integrations/allowlist", { agent_id: a.id, resource_id: res.id, requires_approval: false }).catch(function () { /* già presente */ }).then(function () { return a; });
+      });
+    }).then(function () { notice(t("ok")); return loadLists(); }).catch(fail);
+  }
+  function rsn(code) { var m = (I[lang] && I[lang].rc) || {}; return m[code] || code; }
+  function bubble(kind, text, meta) {
+    var d = document.createElement("div");
+    d.className = "bubble " + kind;
+    d.textContent = text;
+    if (meta) { var m = document.createElement("span"); m.className = "meta"; m.textContent = meta; d.appendChild(m); }
+    $("#chat").appendChild(d);
+    $("#chat").scrollTop = $("#chat").scrollHeight;
+  }
+  function note(text) { var d = document.createElement("div"); d.className = "bubble note"; d.textContent = text; $("#chat").appendChild(d); }
+  function send() {
+    var text = $("#input").value.trim();
+    if (!text) return;
+    var key = $("#apikey").value.trim();
+    var ag = $("#agent").value, res = $("#resource").value;
+    if (!ag || !res) return notice(t("need"), "err");
+    if (!key) return notice(t("keyNeeded"), "err");
+    $("#input").value = "";
+    bubble("user", text, t("you"));
+    history.push({ role: "user", content: text });
+    var wait = document.createElement("div"); wait.className = "bubble note"; wait.textContent = t("sending"); $("#chat").appendChild(wait);
+    $("#send").disabled = true;
+    api("POST", "/chat/complete", {
+      provider: $("#provider").value, api_key: key, model: $("#model").value.trim(),
+      system: $("#system").value, messages: history, agent_id: +ag, resource_id: +res, environment: "production"
+    }).then(function (r) {
+      wait.remove();
+      if (r.decision === "allowed") {
+        history.push({ role: "assistant", content: r.text });
+        bubble("bot", r.text, t("bot") + " - " + fill("meta", { in: r.input_tokens, out: r.output_tokens, ms: r.latency_ms }));
+      } else {
+        history.pop();
+        note(t("dec." + r.decision) + (r.reason ? " - " + rsn(r.reason) : ""));
+      }
+    }).catch(function (e) { wait.remove(); history.pop(); fail(e); })
+      .then(function () { $("#send").disabled = false; });
+  }
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.title = t("title") + " - Open-GenCut";
+    $$("[data-i18n]").forEach(function (el) { el.textContent = t(el.getAttribute("data-i18n")); });
+    $$("[data-i18n-ph]").forEach(function (el) { el.placeholder = t(el.getAttribute("data-i18n-ph")); });
+  }
+  function $$(s) { return document.querySelectorAll(s); }
+
+  // La chiave non viene mai salvata: resta solo nel campo della pagina fino al ricaricamento.
+  try { localStorage.removeItem("gencut.chat.apikey"); } catch (e) { /* ignorato */ }
+  $("#provider").addEventListener("change", function () { $("#model").value = $("#provider").value === "openai" ? "gpt-4o" : "claude-haiku-5-5"; refreshResources(); });
+  $("#agent").addEventListener("change", function () { store("agent", $("#agent").value); });
+  $("#resource").addEventListener("change", function () { store("res." + $("#provider").value, $("#resource").value); });
+  $("#reg").addEventListener("click", register);
+  $("#refresh").addEventListener("click", loadLists);
+  $("#send").addEventListener("click", send);
+  $("#input").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+  $("#clear").addEventListener("click", function () { history = []; $("#chat").innerHTML = ""; note(t("newChat")); });
+  $("#lang").addEventListener("change", function (e) { lang = e.target.value; try { localStorage.setItem("gencut.lang", lang); } catch (x) {} applyLang(); loadLists(); });
+  try { var s = localStorage.getItem("gencut.lang"); if (s && I[s]) lang = s; } catch (x) {}
+  $("#lang").value = lang;
+  applyLang();
+  loadLists();
+})();
+</script>
+<script src="/nav.js?v=7"></script>
+</body>
+</html>

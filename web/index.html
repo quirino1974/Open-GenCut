@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open-GenCut</title>
+<style>
+  :root {
+    --bg: #f5f7fa; --panel: #ffffff; --ink: #1c2530; --muted: #5d6b7a;
+    --accent: #1f6feb; --accent-ink: #ffffff; --danger: #c62828; --line: #d9e0e7;
+    --ok: #2e7d32; --warn: #b26a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f141a; --panel: #18202a; --ink: #e6edf3; --muted: #9aa8b6;
+      --accent: #4c8dff; --accent-ink: #0b1220; --danger: #ef5350; --line: #2a3644;
+      --ok: #66bb6a; --warn: #ffb74d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141a; --panel: #18202a; --ink: #e6edf3; --muted: #9aa8b6;
+    --accent: #4c8dff; --accent-ink: #0b1220; --danger: #ef5350; --line: #2a3644;
+    --ok: #66bb6a; --warn: #ffb74d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 16px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 20px; margin: 0; }
+  header h1 span { color: var(--accent); }
+  nav { display: flex; flex-wrap: wrap; gap: 6px; }
+  nav button, .btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
+  nav button.active, .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.danger { color: var(--danger); }
+  main { padding: 16px; max-width: 1200px; margin: 0 auto; }
+  section.view { display: none; }
+  section.view.active { display: block; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+  input, select, textarea { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100%; }
+  .toolbar input { width: auto; flex: 1 1 200px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); color: var(--muted); }
+  .badge.active { color: var(--ok); border-color: var(--ok); }
+  .badge.suspended { color: var(--warn); border-color: var(--warn); }
+  .badge.retired { color: var(--danger); border-color: var(--danger); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .kpi b { display: block; font-size: 24px; }
+  .kpi span { color: var(--muted); font-size: 13px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .form-grid label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .help { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); width: min(720px, 94vw); padding: 0; }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  dialog .inner { padding: 18px; }
+  .act-ok { color:#15803d; font-weight:600; } .act-warn { color:#b45309; font-weight:700; }
+  .msg { padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; border: 1px solid var(--line); }
+  .msg.err { color: var(--danger); border-color: var(--danger); }
+  .msg.ok { color: var(--ok); border-color: var(--ok); }
+  .wrap { overflow-x: auto; }
+  @media (max-width: 640px) { th:nth-child(4), td:nth-child(4) { display: none; } }
+</style>
+<link rel="stylesheet" href="/theme.css?v=1">
+</head>
+<body>
+<header>
+  <h1>Open-GenCut <span>AMP</span> <span class="alpha-tag">Alfa</span></h1>
+  <span class="alpha-badge" data-i18n="alpha" style="font-size:12px;color:var(--danger);border:1px solid var(--danger);border-radius:999px;padding:1px 8px;white-space:nowrap">Versione alfa - non usare in produzione</span>
+  <nav>
+    <button data-view="agents" class="active" data-i18n="nav.agents">Agenti</button>
+    <button data-view="configs" data-i18n="nav.configs">Configurazioni</button>
+    <button data-view="metrics" data-i18n="nav.metrics">Metriche</button>
+    <button data-view="audit" data-i18n="nav.audit">Tracciamento</button>
+    <button data-view="help" data-i18n="nav.help">Aiuto</button>
+  </nav>
+  <div class="toolbar" style="margin:0">
+    <select id="lang" aria-label="Language" style="width:auto">
+      <option value="it">Italiano</option>
+      <option value="en">English</option>
+      <option value="fr">Français</option>
+      <option value="de">Deutsch</option>
+    </select>
+  </div>
+</header>
+<div id="gc-nav"></div>
+
+<main>
+  <div id="notice"></div>
+
+  <!-- AGENTI -->
+  <section class="view active" id="view-agents">
+    <div class="toolbar">
+      <input id="f-q" data-i18n-ph="filter.search" placeholder="Cerca">
+      <select id="f-origin" style="width:auto"></select>
+      <select id="f-status" style="width:auto"></select>
+      <button class="btn primary" id="btn-add-agent" data-i18n="btn.addAgent">Aggiungi agente</button>
+    </div>
+    <div class="card wrap">
+      <table>
+        <thead><tr>
+          <th data-i18n="col.name">Nome</th>
+          <th data-i18n="col.origin">Origine</th>
+          <th data-i18n="col.status">Stato</th>
+          <th data-i18n="col.owner">Proprietario</th>
+          <th data-i18n="col.cost">Costo mensile</th>
+          <th data-i18n="col.activity">Attività</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="agents-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- CONFIGURAZIONI -->
+  <section class="view" id="view-configs">
+    <div class="toolbar">
+      <button class="btn primary" id="btn-add-config" data-i18n="btn.addConfig">Aggiungi configurazione</button>
+    </div>
+    <div class="card wrap">
+      <table>
+        <thead><tr>
+          <th data-i18n="col.key">Chiave</th>
+          <th data-i18n="col.value">Valore</th>
+          <th data-i18n="col.scope">Ambito</th>
+          <th data-i18n="col.description">Descrizione</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="configs-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- METRICHE -->
+  <section class="view" id="view-metrics">
+    <div class="grid" id="kpis"></div>
+    <div class="card" style="margin-top:16px">
+      <h3 data-i18n="metrics.byOrigin">Agenti per origine</h3>
+      <div id="by-origin"></div>
+    </div>
+  </section>
+
+  <!-- AUDIT -->
+  <section class="view" id="view-audit">
+    <div class="card wrap">
+      <table>
+        <thead><tr>
+          <th data-i18n="col.when">Quando</th>
+          <th data-i18n="col.actor">Utente</th>
+          <th data-i18n="col.action">Azione</th>
+          <th data-i18n="col.entity">Entità</th>
+          <th data-i18n="col.detail">Dettaglio</th>
+        </tr></thead>
+        <tbody id="audit-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- AIUTO -->
+  <section class="view" id="view-help">
+    <div class="card">
+      <h2 data-i18n="help.title">Guida in linea</h2>
+      <h3 data-i18n="help.agentsTitle">Registro agenti</h3>
+      <p data-i18n="help.agents">Il registro raccoglie tutti gli agenti dell'azienda, creati internamente, acquistati dal marketplace o forniti da terze parti. Usa i filtri per origine e stato. Ogni agente ha un proprietario responsabile.</p>
+      <h3 data-i18n="help.addTitle">Aggiungere, modificare, cancellare</h3>
+      <p data-i18n="help.add">Aggiungi un agente con il pulsante dedicato. Il nome è obbligatorio. Modifica un agente dalla sua riga. La cancellazione è definitiva e viene registrata nel tracciamento.</p>
+      <h3 data-i18n="help.configsTitle">Configurazioni</h3>
+      <p data-i18n="help.configs">Una configurazione è una coppia chiave/valore. Può valere per tutta la piattaforma (globale) o per un solo agente. La chiave deve essere unica.</p>
+      <h3 data-i18n="help.metricsTitle">Metriche e tracciamento</h3>
+      <p data-i18n="help.metrics">Le metriche riepilogano agenti, stati e costi mensili. Il tracciamento elenca ogni modifica fatta sul registro.</p>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <div class="inner">
+    <h2 id="dlg-title"></h2>
+    <span class="alpha-tag">Alfa</span>
+    <div id="dlg-body"></div>
+    <div class="actions" id="dlg-actions"></div>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Traduzioni (IT, EN, FR, DE) ----------
+  var I18N = {
+    it: {
+      "nav.agents": "Agenti", "nav.configs": "Configurazioni", "nav.metrics": "Metriche",
+      "nav.audit": "Tracciamento", "nav.help": "Aiuto",
+      "filter.search": "Cerca per nome o proprietario",
+      "filter.allOrigins": "Tutte le origini", "filter.allStatus": "Tutti gli stati",
+      "btn.addAgent": "Aggiungi agente", "btn.addConfig": "Aggiungi configurazione",
+      "btn.edit": "Modifica", "btn.delete": "Cancella", "btn.save": "Salva", "btn.cancel": "Annulla",
+      "btn.confirmDelete": "Conferma cancellazione",
+      "col.name": "Nome", "col.origin": "Origine", "col.status": "Stato", "col.owner": "Proprietario",
+      "col.activity": "Attività", "act.active": "Attivo", "act.inactive": "Senza attività", "act.never": "Mai attivo", "col.cost": "Costo mensile", "col.key": "Chiave", "col.value": "Valore", "col.scope": "Ambito",
+      "col.description": "Descrizione", "col.when": "Quando", "col.actor": "Utente", "col.action": "Azione",
+      "col.entity": "Entità", "col.detail": "Dettaglio",
+      "origin.internal": "Interno", "origin.marketplace": "Marketplace", "origin.third_party": "Terze parti",
+      "status.registered": "Registrato", "status.active": "Attivo", "status.suspended": "Sospeso", "status.retired": "Dismesso",
+      "scope.global": "Globale", "scope.agent": "Agente",
+      "f.yes": "Sì", "f.no": "No", "f.interacts": "Interagisce con persone", "f.lang": "Lingua dell'interazione (es. it, en-GB)", "aact": {"deploy": "Deploy", "promote": "Promozione", "suspend": "Sospensione", "reactivate": "Riattivazione", "retire": "Dismissione", "approve": "Approvazione", "reject": "Rifiuto", "create": "Creazione", "update": "Modifica", "delete": "Cancellazione"}, "aent": {"agent": "Agente", "agent_evaluation": "Valutazione", "agent_version": "Versione", "allowlist": "Allowlist", "approval": "Approvazione", "configuration": "Configurazione", "integration_resource": "Risorsa", "limit": "Limite", "agent_deployment": "Deploy"}, "adet": {"agent_created": "Agente creato: {name}", "agent_updated": "Agente modificato: {name}", "status_change": "Stato: {from} → {to}", "agent_deleted": "Agente cancellato: {name}", "configuration_created": "Configurazione creata: {key}", "configuration_updated": "Configurazione modificata: {key}", "configuration_deleted": "Configurazione cancellata: {key}", "resource_saved": "Risorsa salvata: {name} ({kind}, {status})", "resource_deleted": "Risorsa cancellata: {name}", "allowlist_added": "Allowlist aggiunta: agente {agent_id}, risorsa {resource_id}, approvazione richiesta: {requires_approval}", "allowlist_removed": "Allowlist: voce rimossa", "limit_saved": "Limite salvato: agente {agent_id}, risorsa {resource_id}", "limit_deleted": "Limite cancellato", "approval_requested": "Approvazione richiesta", "approval_approved": "Approvazione concessa", "approval_rejected": "Approvazione rifiutata", "evaluation_recorded": "Valutazione: versione {version}, esito {result}", "version_registered": "Versione registrata: {version}", "deployment": "Deploy: versione {version} in {environment}", "promotion": "Promozione: versione {version} da {from} a {to}", "res": {"passed": "superata", "failed": "non superata"}, "env": {"development": "sviluppo", "staging": "staging", "production": "produzione"}}, "mod.integr": "Integrazioni", "mod.lifecycle": "Ciclo di vita", "mod.compliance": "Conformità", "mod.guardrails": "Guardrail", "mod.evaluation": "Valutazione", "mod.marketplace": "Marketplace", "mod.finops": "FinOps", "alpha": "Versione alfa – non usare in produzione", "f.name": "Nome *", "f.description": "Descrizione", "f.origin": "Origine", "f.vendor": "Fornitore",
+      "f.version": "Versione", "f.owner": "Proprietario", "f.status": "Stato", "f.model": "Modello",
+      "f.endpoint": "Endpoint", "f.cost": "Costo mensile", "f.currency": "Valuta",
+      "f.key": "Chiave *", "f.value": "Valore", "f.scopeLabel": "Ambito", "f.agent": "Agente",
+      "dlg.addAgent": "Nuovo agente", "dlg.editAgent": "Modifica agente",
+      "dlg.addConfig": "Nuova configurazione", "dlg.editConfig": "Modifica configurazione",
+      "dlg.deleteAgent": "Cancellare l'agente?", "dlg.deleteConfig": "Cancellare la configurazione?",
+      "dlg.deleteText": "L'operazione non si può annullare.",
+      "msg.saved": "Salvato.", "msg.deleted": "Cancellato.", "msg.error": "Errore",
+      "msg.required": "Il campo obbligatorio è vuoto.", "msg.empty": "Nessun elemento.",
+      "metrics.total": "Agenti totali", "metrics.cost": "Costo mensile totale", "metrics.active": "Agenti attivi",
+      "metrics.byOrigin": "Agenti per origine", "metrics.byStatus": "Agenti per stato",
+      "help.title": "Guida in linea", "help.agentsTitle": "Registro agenti",
+      "help.agents": "Il registro raccoglie tutti gli agenti dell'azienda, creati internamente, acquistati dal marketplace o forniti da terze parti. Usa i filtri per origine e stato. Ogni agente ha un proprietario responsabile.",
+      "help.addTitle": "Aggiungere, modificare, cancellare",
+      "help.add": "Aggiungi un agente con il pulsante dedicato. Il nome è obbligatorio. Modifica un agente dalla sua riga. La cancellazione è definitiva e viene registrata nel tracciamento.",
+      "help.configsTitle": "Configurazioni",
+      "help.configs": "Una configurazione è una coppia chiave/valore. Può valere per tutta la piattaforma (globale) o per un solo agente. La chiave deve essere unica.",
+      "help.metricsTitle": "Metriche e tracciamento",
+      "help.metrics": "Le metriche riepilogano agenti, stati e costi mensili. Il tracciamento elenca ogni modifica fatta sul registro.",
+      "err.network": "Impossibile contattare il server."
+    },
+    en: {
+      "nav.agents": "Agents", "nav.configs": "Configurations", "nav.metrics": "Metrics",
+      "nav.audit": "Audit", "nav.help": "Help",
+      "filter.search": "Search by name or owner",
+      "filter.allOrigins": "All origins", "filter.allStatus": "All statuses",
+      "btn.addAgent": "Add agent", "btn.addConfig": "Add configuration",
+      "btn.edit": "Edit", "btn.delete": "Delete", "btn.save": "Save", "btn.cancel": "Cancel",
+      "btn.confirmDelete": "Confirm deletion",
+      "col.name": "Name", "col.origin": "Origin", "col.status": "Status", "col.owner": "Owner",
+      "col.activity": "Activity", "act.active": "Active", "act.inactive": "Inactive", "act.never": "Never active", "col.cost": "Monthly cost", "col.key": "Key", "col.value": "Value", "col.scope": "Scope",
+      "col.description": "Description", "col.when": "When", "col.actor": "User", "col.action": "Action",
+      "col.entity": "Entity", "col.detail": "Detail",
+      "origin.internal": "Internal", "origin.marketplace": "Marketplace", "origin.third_party": "Third party",
+      "status.registered": "Registered", "status.active": "Active", "status.suspended": "Suspended", "status.retired": "Retired",
+      "scope.global": "Global", "scope.agent": "Agent",
+      "f.yes": "Yes", "f.no": "No", "f.interacts": "Interacts with people", "f.lang": "Interaction language (e.g. it, en-GB)", "aact": {"deploy": "Deploy", "promote": "Promotion", "suspend": "Suspension", "reactivate": "Reactivation", "retire": "Retirement", "approve": "Approval", "reject": "Rejection", "create": "Create", "update": "Update", "delete": "Delete"}, "aent": {"agent": "Agent", "agent_evaluation": "Evaluation", "agent_version": "Version", "allowlist": "Allowlist", "approval": "Approval", "configuration": "Configuration", "integration_resource": "Resource", "limit": "Limit", "agent_deployment": "Deployment"}, "adet": {"agent_created": "Agent created: {name}", "agent_updated": "Agent updated: {name}", "status_change": "Status: {from} → {to}", "agent_deleted": "Agent deleted: {name}", "configuration_created": "Configuration created: {key}", "configuration_updated": "Configuration updated: {key}", "configuration_deleted": "Configuration deleted: {key}", "resource_saved": "Resource saved: {name} ({kind}, {status})", "resource_deleted": "Resource deleted: {name}", "allowlist_added": "Allowlist added: agent {agent_id}, resource {resource_id}, approval required: {requires_approval}", "allowlist_removed": "Allowlist: entry removed", "limit_saved": "Limit saved: agent {agent_id}, resource {resource_id}", "limit_deleted": "Limit deleted", "approval_requested": "Approval requested", "approval_approved": "Approval granted", "approval_rejected": "Approval rejected", "evaluation_recorded": "Evaluation: version {version}, result {result}", "version_registered": "Version registered: {version}", "deployment": "Deployment: version {version} to {environment}", "promotion": "Promotion: version {version} from {from} to {to}", "res": {"passed": "passed", "failed": "failed"}, "env": {"development": "development", "staging": "staging", "production": "production"}}, "mod.integr": "Integrations", "mod.lifecycle": "Lifecycle", "mod.compliance": "Compliance", "mod.guardrails": "Guardrails", "mod.evaluation": "Evaluation", "mod.marketplace": "Marketplace", "mod.finops": "FinOps", "alpha": "Alpha version – do not use in production", "f.name": "Name *", "f.description": "Description", "f.origin": "Origin", "f.vendor": "Vendor",
+      "f.version": "Version", "f.owner": "Owner", "f.status": "Status", "f.model": "Model",
+      "f.endpoint": "Endpoint", "f.cost": "Monthly cost", "f.currency": "Currency",
+      "f.key": "Key *", "f.value": "Value", "f.scopeLabel": "Scope", "f.agent": "Agent",
+      "dlg.addAgent": "New agent", "dlg.editAgent": "Edit agent",
+      "dlg.addConfig": "New configuration", "dlg.editConfig": "Edit configuration",
+      "dlg.deleteAgent": "Delete the agent?", "dlg.deleteConfig": "Delete the configuration?",
+      "dlg.deleteText": "This action cannot be undone.",
+      "msg.saved": "Saved.", "msg.deleted": "Deleted.", "msg.error": "Error",
+      "msg.required": "A required field is empty.", "msg.empty": "No items.",
+      "metrics.total": "Total agents", "metrics.cost": "Total monthly cost", "metrics.active": "Active agents",
+      "metrics.byOrigin": "Agents by origin", "metrics.byStatus": "Agents by status",
+      "help.title": "Online help", "help.agentsTitle": "Agent registry",
+      "help.agents": "The registry collects every agent of the company, built in-house, bought from the marketplace or supplied by third parties. Use the origin and status filters. Each agent has an accountable owner.",
+      "help.addTitle": "Add, edit, delete",
+      "help.add": "Add an agent with the dedicated button. The name is required. Edit an agent from its row. Deletion is permanent and is recorded in the audit log.",
+      "help.configsTitle": "Configurations",
+      "help.configs": "A configuration is a key/value pair. It can apply to the whole platform (global) or to a single agent. The key must be unique.",
+      "help.metricsTitle": "Metrics and audit",
+      "help.metrics": "Metrics summarise agents, statuses and monthly costs. The audit log lists every change made to the registry.",
+      "err.network": "Cannot reach the server."
+    },
+    fr: {
+      "nav.agents": "Agents", "nav.configs": "Configurations", "nav.metrics": "Indicateurs",
+      "nav.audit": "Traçabilité", "nav.help": "Aide",
+      "filter.search": "Rechercher par nom ou propriétaire",
+      "filter.allOrigins": "Toutes les origines", "filter.allStatus": "Tous les statuts",
+      "btn.addAgent": "Ajouter un agent", "btn.addConfig": "Ajouter une configuration",
+      "btn.edit": "Modifier", "btn.delete": "Supprimer", "btn.save": "Enregistrer", "btn.cancel": "Annuler",
+      "btn.confirmDelete": "Confirmer la suppression",
+      "col.name": "Nom", "col.origin": "Origine", "col.status": "Statut", "col.owner": "Propriétaire",
+      "col.activity": "Activité", "act.active": "Actif", "act.inactive": "Inactif", "act.never": "Jamais actif", "col.cost": "Coût mensuel", "col.key": "Clé", "col.value": "Valeur", "col.scope": "Portée",
+      "col.description": "Description", "col.when": "Date", "col.actor": "Utilisateur", "col.action": "Action",
+      "col.entity": "Entité", "col.detail": "Détail",
+      "origin.internal": "Interne", "origin.marketplace": "Marketplace", "origin.third_party": "Tierce partie",
+      "status.registered": "Enregistré", "status.active": "Actif", "status.suspended": "Suspendu", "status.retired": "Retiré",
+      "scope.global": "Global", "scope.agent": "Agent",
+      "f.yes": "Oui", "f.no": "Non", "f.interacts": "Interagit avec des personnes", "f.lang": "Langue de l'interaction (ex. it, en-GB)", "aact": {"deploy": "Déploiement", "promote": "Promotion", "suspend": "Suspension", "reactivate": "Réactivation", "retire": "Retrait", "approve": "Approbation", "reject": "Refus", "create": "Création", "update": "Modification", "delete": "Suppression"}, "aent": {"agent": "Agent", "agent_evaluation": "Évaluation", "agent_version": "Version", "allowlist": "Liste blanche", "approval": "Approbation", "configuration": "Configuration", "integration_resource": "Ressource", "limit": "Limite", "agent_deployment": "Déploiement"}, "adet": {"agent_created": "Agent créé : {name}", "agent_updated": "Agent modifié : {name}", "status_change": "Statut : {from} → {to}", "agent_deleted": "Agent supprimé : {name}", "configuration_created": "Configuration créée : {key}", "configuration_updated": "Configuration modifiée : {key}", "configuration_deleted": "Configuration supprimée : {key}", "resource_saved": "Ressource enregistrée : {name} ({kind}, {status})", "resource_deleted": "Ressource supprimée : {name}", "allowlist_added": "Liste blanche ajoutée : agent {agent_id}, ressource {resource_id}, approbation requise : {requires_approval}", "allowlist_removed": "Liste blanche : entrée supprimée", "limit_saved": "Limite enregistrée : agent {agent_id}, ressource {resource_id}", "limit_deleted": "Limite supprimée", "approval_requested": "Approbation demandée", "approval_approved": "Approbation accordée", "approval_rejected": "Approbation refusée", "evaluation_recorded": "Évaluation : version {version}, résultat {result}", "version_registered": "Version enregistrée : {version}", "deployment": "Déploiement : version {version} en {environment}", "promotion": "Promotion : version {version} de {from} à {to}", "res": {"passed": "réussie", "failed": "échouée"}, "env": {"development": "développement", "staging": "préproduction", "production": "production"}}, "mod.integr": "Intégrations", "mod.lifecycle": "Cycle de vie", "mod.compliance": "Conformité", "mod.guardrails": "Garde-fous", "mod.evaluation": "Évaluation", "mod.marketplace": "Marketplace", "mod.finops": "FinOps", "alpha": "Version alpha – ne pas utiliser en production", "f.name": "Nom *", "f.description": "Description", "f.origin": "Origine", "f.vendor": "Fournisseur",
+      "f.version": "Version", "f.owner": "Propriétaire", "f.status": "Statut", "f.model": "Modèle",
+      "f.endpoint": "Point d'accès", "f.cost": "Coût mensuel", "f.currency": "Devise",
+      "f.key": "Clé *", "f.value": "Valeur", "f.scopeLabel": "Portée", "f.agent": "Agent",
+      "dlg.addAgent": "Nouvel agent", "dlg.editAgent": "Modifier l'agent",
+      "dlg.addConfig": "Nouvelle configuration", "dlg.editConfig": "Modifier la configuration",
+      "dlg.deleteAgent": "Supprimer l'agent ?", "dlg.deleteConfig": "Supprimer la configuration ?",
+      "dlg.deleteText": "Cette action est irréversible.",
+      "msg.saved": "Enregistré.", "msg.deleted": "Supprimé.", "msg.error": "Erreur",
+      "msg.required": "Un champ obligatoire est vide.", "msg.empty": "Aucun élément.",
+      "metrics.total": "Agents au total", "metrics.cost": "Coût mensuel total", "metrics.active": "Agents actifs",
+      "metrics.byOrigin": "Agents par origine", "metrics.byStatus": "Agents par statut",
+      "help.title": "Aide en ligne", "help.agentsTitle": "Registre des agents",
+      "help.agents": "Le registre rassemble tous les agents de l'entreprise, développés en interne, achetés sur le marketplace ou fournis par des tiers. Utilisez les filtres d'origine et de statut. Chaque agent a un propriétaire responsable.",
+      "help.addTitle": "Ajouter, modifier, supprimer",
+      "help.add": "Ajoutez un agent avec le bouton dédié. Le nom est obligatoire. Modifiez un agent depuis sa ligne. La suppression est définitive et enregistrée dans la traçabilité.",
+      "help.configsTitle": "Configurations",
+      "help.configs": "Une configuration est un couple clé/valeur. Elle peut valoir pour toute la plateforme (globale) ou pour un seul agent. La clé doit être unique.",
+      "help.metricsTitle": "Indicateurs et traçabilité",
+      "help.metrics": "Les indicateurs résument les agents, les statuts et les coûts mensuels. La traçabilité liste chaque modification du registre.",
+      "err.network": "Impossible de joindre le serveur."
+    },
+    de: {
+      "nav.agents": "Agenten", "nav.configs": "Konfigurationen", "nav.metrics": "Kennzahlen",
+      "nav.audit": "Protokoll", "nav.help": "Hilfe",
+      "filter.search": "Nach Name oder Eigentümer suchen",
+      "filter.allOrigins": "Alle Herkünfte", "filter.allStatus": "Alle Status",
+      "btn.addAgent": "Agent hinzufügen", "btn.addConfig": "Konfiguration hinzufügen",
+      "btn.edit": "Bearbeiten", "btn.delete": "Löschen", "btn.save": "Speichern", "btn.cancel": "Abbrechen",
+      "btn.confirmDelete": "Löschen bestätigen",
+      "col.name": "Name", "col.origin": "Herkunft", "col.status": "Status", "col.owner": "Eigentümer",
+      "col.activity": "Aktivität", "act.active": "Aktiv", "act.inactive": "Inaktiv", "act.never": "Nie aktiv", "col.cost": "Monatliche Kosten", "col.key": "Schlüssel", "col.value": "Wert", "col.scope": "Geltungsbereich",
+      "col.description": "Beschreibung", "col.when": "Zeitpunkt", "col.actor": "Benutzer", "col.action": "Aktion",
+      "col.entity": "Objekt", "col.detail": "Details",
+      "origin.internal": "Intern", "origin.marketplace": "Marketplace", "origin.third_party": "Drittanbieter",
+      "status.registered": "Registriert", "status.active": "Aktiv", "status.suspended": "Gesperrt", "status.retired": "Außer Betrieb",
+      "scope.global": "Global", "scope.agent": "Agent",
+      "f.yes": "Ja", "f.no": "Nein", "f.interacts": "Interagiert mit Personen", "f.lang": "Interaktionssprache (z. B. it, en-GB)", "aact": {"deploy": "Deployment", "promote": "Beförderung", "suspend": "Sperrung", "reactivate": "Reaktivierung", "retire": "Außerbetriebnahme", "approve": "Genehmigung", "reject": "Ablehnung", "create": "Anlage", "update": "Änderung", "delete": "Löschung"}, "aent": {"agent": "Agent", "agent_evaluation": "Bewertung", "agent_version": "Version", "allowlist": "Freigabeliste", "approval": "Freigabe", "configuration": "Konfiguration", "integration_resource": "Ressource", "limit": "Limit", "agent_deployment": "Deployment"}, "adet": {"agent_created": "Agent angelegt: {name}", "agent_updated": "Agent geändert: {name}", "status_change": "Status: {from} → {to}", "agent_deleted": "Agent gelöscht: {name}", "configuration_created": "Konfiguration angelegt: {key}", "configuration_updated": "Konfiguration geändert: {key}", "configuration_deleted": "Konfiguration gelöscht: {key}", "resource_saved": "Ressource gespeichert: {name} ({kind}, {status})", "resource_deleted": "Ressource gelöscht: {name}", "allowlist_added": "Freigabeliste ergänzt: Agent {agent_id}, Ressource {resource_id}, Freigabe erforderlich: {requires_approval}", "allowlist_removed": "Freigabeliste: Eintrag entfernt", "limit_saved": "Limit gespeichert: Agent {agent_id}, Ressource {resource_id}", "limit_deleted": "Limit gelöscht", "approval_requested": "Freigabe angefordert", "approval_approved": "Freigabe erteilt", "approval_rejected": "Freigabe abgelehnt", "evaluation_recorded": "Bewertung: Version {version}, Ergebnis {result}", "version_registered": "Version registriert: {version}", "deployment": "Deployment: Version {version} in {environment}", "promotion": "Beförderung: Version {version} von {from} nach {to}", "res": {"passed": "bestanden", "failed": "nicht bestanden"}, "env": {"development": "Entwicklung", "staging": "Staging", "production": "Produktion"}}, "mod.integr": "Integrationen", "mod.lifecycle": "Lebenszyklus", "mod.compliance": "Konformität", "mod.guardrails": "Guardrails", "mod.evaluation": "Bewertung", "mod.marketplace": "Marketplace", "mod.finops": "FinOps", "alpha": "Alpha-Version – nicht in der Produktion verwenden", "f.name": "Name *", "f.description": "Beschreibung", "f.origin": "Herkunft", "f.vendor": "Anbieter",
+      "f.version": "Version", "f.owner": "Eigentümer", "f.status": "Status", "f.model": "Modell",
+      "f.endpoint": "Endpunkt", "f.cost": "Monatliche Kosten", "f.currency": "Währung",
+      "f.key": "Schlüssel *", "f.value": "Wert", "f.scopeLabel": "Geltungsbereich", "f.agent": "Agent",
+      "dlg.addAgent": "Neuer Agent", "dlg.editAgent": "Agent bearbeiten",
+      "dlg.addConfig": "Neue Konfiguration", "dlg.editConfig": "Konfiguration bearbeiten",
+      "dlg.deleteAgent": "Agent löschen?", "dlg.deleteConfig": "Konfiguration löschen?",
+      "dlg.deleteText": "Dieser Vorgang kann nicht rückgängig gemacht werden.",
+      "msg.saved": "Gespeichert.", "msg.deleted": "Gelöscht.", "msg.error": "Fehler",
+      "msg.required": "Ein Pflichtfeld ist leer.", "msg.empty": "Keine Einträge.",
+      "metrics.total": "Agenten gesamt", "metrics.cost": "Monatliche Gesamtkosten", "metrics.active": "Aktive Agenten",
+      "metrics.byOrigin": "Agenten nach Herkunft", "metrics.byStatus": "Agenten nach Status",
+      "help.title": "Online-Hilfe", "help.agentsTitle": "Agentenregister",
+      "help.agents": "Das Register erfasst alle Agenten des Unternehmens, intern entwickelt, im Marketplace gekauft oder von Drittanbietern geliefert. Nutzen Sie die Filter für Herkunft und Status. Jeder Agent hat einen verantwortlichen Eigentümer.",
+      "help.addTitle": "Hinzufügen, bearbeiten, löschen",
+      "help.add": "Fügen Sie einen Agenten über die Schaltfläche hinzu. Der Name ist Pflicht. Bearbeiten Sie einen Agenten über seine Zeile. Das Löschen ist endgültig und wird im Protokoll festgehalten.",
+      "help.configsTitle": "Konfigurationen",
+      "help.configs": "Eine Konfiguration ist ein Schlüssel-Wert-Paar. Sie gilt für die gesamte Plattform (global) oder für einen einzelnen Agenten. Der Schlüssel muss eindeutig sein.",
+      "help.metricsTitle": "Kennzahlen und Protokoll",
+      "help.metrics": "Kennzahlen fassen Agenten, Status und monatliche Kosten zusammen. Das Protokoll listet jede Änderung am Register auf.",
+      "err.network": "Der Server ist nicht erreichbar."
+    }
+  };
+
+  var FIELDS = {
+    agent: [
+      ["name", "f.name", "text"], ["description", "f.description", "textarea"],
+      ["origin", "f.origin", "select", ["internal", "marketplace", "third_party"]],
+      ["vendor", "f.vendor", "text"], ["version", "f.version", "text"],
+      ["owner", "f.owner", "text"],
+      ["status", "f.status", "select", ["registered", "active", "suspended", "retired"]],
+      ["model", "f.model", "text"], ["endpoint", "f.endpoint", "text"],
+      ["cost_monthly", "f.cost", "number"], ["currency", "f.currency", "select", ["EUR", "USD"]],
+      ["interacts_with_people", "f.interacts", "select", ["false", "true"]], ["interaction_language", "f.lang", "text"]
+    ],
+    config: [
+      ["key", "f.key", "text"], ["value", "f.value", "text"],
+      ["scope", "f.scopeLabel", "select", ["global", "agent"]],
+      ["agent_id", "f.agent", "agentselect"], ["description", "f.description", "textarea"]
+    ]
+  };
+
+  // Messaggi d'errore del server tradotti per lingua (fallback: prefisso Errore + testo originale).
+  var SRV = {"it": [["interaction_language è obbligatoria", "Lingua dell'interazione obbligatoria per gli agenti che interagiscono con persone"], ["interaction_language deve essere", "La lingua deve essere un tag, es. it o en-GB"], ["valore già presente", "Valore già presente (chiave duplicata)"], ["coppia agente-risorsa già presente", "Coppia agente-risorsa già presente nei limiti"], ["ultima valutazione non superata", "Ultima valutazione non superata: promozione bloccata"], ["ultima valutazione su una versione diversa", "L'ultima valutazione riguarda un'altra versione"], ["agente sospeso", "Agente sospeso: operazione non consentita"], ["agente dismesso", "Agente dismesso: operazione non consentita"], ["versione non registrata", "Versione non registrata per questo agente"], ["versione già registrata", "Versione già registrata per questo agente"], ["transizione non consentita", "Transizione di stato non consentita"], ["non è in allowlist", "La coppia non è in allowlist"], ["non è marcata come sensibile", "La coppia non richiede approvazione"], ["name è obbligatorio", "Il nome è obbligatorio"], ["key è obbligatoria", "La chiave è obbligatoria"], ["version_label è obbligatoria", "L'etichetta di versione è obbligatoria"], ["currency deve essere", "La valuta deve essere EUR o USD"], ["non trovato", "Elemento non trovato"], ["errore interno", "Errore interno del server"]], "en": [["interaction_language è obbligatoria", "Interaction language is required for agents that interact with people"], ["interaction_language deve essere", "The language must be a tag, e.g. it or en-GB"], ["valore già presente", "Value already exists (duplicate key)"], ["coppia agente-risorsa già presente", "The agent-resource pair already has a limit"], ["ultima valutazione non superata", "Latest evaluation not passed: promotion blocked"], ["ultima valutazione su una versione diversa", "The latest evaluation is for another version"], ["agente sospeso", "Agent suspended: operation not allowed"], ["agente dismesso", "Agent retired: operation not allowed"], ["versione non registrata", "Version not registered for this agent"], ["versione già registrata", "Version already registered for this agent"], ["transizione non consentita", "State transition not allowed"], ["non è in allowlist", "The pair is not in the allowlist"], ["non è marcata come sensibile", "The pair does not require approval"], ["name è obbligatorio", "Name is required"], ["key è obbligatoria", "Key is required"], ["version_label è obbligatoria", "Version label is required"], ["currency deve essere", "Currency must be EUR or USD"], ["non trovato", "Item not found"], ["errore interno", "Internal server error"]], "fr": [["interaction_language è obbligatoria", "La langue de l'interaction est obligatoire pour les agents qui interagissent avec des personnes"], ["interaction_language deve essere", "La langue doit être un code, ex. it ou en-GB"], ["valore già presente", "Valeur déjà présente (clé en double)"], ["coppia agente-risorsa già presente", "La paire agent-ressource a déjà une limite"], ["ultima valutazione non superata", "Dernière évaluation non réussie : promotion bloquée"], ["ultima valutazione su una versione diversa", "La dernière évaluation concerne une autre version"], ["agente sospeso", "Agent suspendu : opération non autorisée"], ["agente dismesso", "Agent retiré : opération non autorisée"], ["versione non registrata", "Version non enregistrée pour cet agent"], ["versione già registrata", "Version déjà enregistrée pour cet agent"], ["transizione non consentita", "Transition d'état non autorisée"], ["non è in allowlist", "La paire n'est pas dans la liste blanche"], ["non è marcata come sensibile", "La paire ne nécessite pas d'approbation"], ["name è obbligatorio", "Le nom est obligatoire"], ["key è obbligatoria", "La clé est obligatoire"], ["version_label è obbligatoria", "Le libellé de version est obligatoire"], ["currency deve essere", "La devise doit être EUR ou USD"], ["non trovato", "Élément introuvable"], ["errore interno", "Erreur interne du serveur"]], "de": [["interaction_language è obbligatoria", "Interaktionssprache ist erforderlich für Agenten, die mit Personen interagieren"], ["interaction_language deve essere", "Die Sprache muss ein Code sein, z. B. it oder en-GB"], ["valore già presente", "Wert bereits vorhanden (doppelter Schlüssel)"], ["coppia agente-risorsa già presente", "Das Agent-Ressourcen-Paar hat bereits ein Limit"], ["ultima valutazione non superata", "Letzte Bewertung nicht bestanden: Beförderung blockiert"], ["ultima valutazione su una versione diversa", "Die letzte Bewertung betrifft eine andere Version"], ["agente sospeso", "Agent gesperrt: Vorgang nicht zulässig"], ["agente dismesso", "Agent außer Betrieb: Vorgang nicht zulässig"], ["versione non registrata", "Version für diesen Agenten nicht registriert"], ["versione già registrata", "Version für diesen Agenten bereits registriert"], ["transizione non consentita", "Zustandsübergang nicht zulässig"], ["non è in allowlist", "Das Paar ist nicht in der Freigabeliste"], ["non è marcata come sensibile", "Das Paar erfordert keine Freigabe"], ["name è obbligatorio", "Name ist erforderlich"], ["key è obbligatoria", "Schlüssel ist erforderlich"], ["version_label è obbligatoria", "Versionsbezeichnung ist erforderlich"], ["currency deve essere", "Die Währung muss EUR oder USD sein"], ["non trovato", "Element nicht gefunden"], ["errore interno", "Interner Serverfehler"]]};
+  function srvMsg(m) {
+    var rows = SRV[lang] || [];
+    for (var i = 0; i < rows.length; i++) { if (String(m).indexOf(rows[i][0]) >= 0) return rows[i][1]; }
+    return (I18N[lang] && I18N[lang]["msg.error"] ? I18N[lang]["msg.error"] : "Error") + ": " + m;
+  }
+  var lang = "it";
+  // Traduce il dettaglio del tracciamento: JSON {key, params} per le righe nuove; il testo originale per le vecchie.
+  function auditDetail(raw) {
+    var o;
+    try { o = JSON.parse(raw); } catch (e) { return raw; }
+    if (!o || typeof o !== "object" || !o.key) return raw;
+    var d = I18N[lang].adet || {};
+    var tpl = d[o.key];
+    if (!tpl) return raw;
+    var p = o.params || {};
+    return tpl.replace(/\{(\w+)\}/g, function (_, k) {
+      var v = p[k];
+      if (v === undefined || v === null) return "";
+      if (typeof v === "boolean") return v ? t0("f.yes") : t0("f.no");
+      if (k === "result") return (d.res && d.res[v]) || String(v);
+      if (k === "environment" || (o.key === "promotion" && (k === "from" || k === "to"))) return (d.env && d.env[v]) || String(v);
+      if (k === "status" || (o.key === "status_change" && (k === "from" || k === "to"))) return I18N[lang]["status." + v] || String(v);
+      return String(v);
+    });
+  }
+  function t0(k) { return (I18N[lang] && I18N[lang][k]) || k; }
+  function aTr(group, k) { var m = (I18N[lang] && I18N[lang][group]) || {}; return m[k] || k; }
+
+  var state = { agents: [], configs: [], origins: [], statuses: [] };
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return document.querySelectorAll(s); };
+
+  function t(k) {
+    var d = I18N[lang] || I18N.it;
+    return d[k] !== undefined ? d[k] : (I18N.it[k] || k);
+  }
+  function esc(v) {
+    return String(v === null || v === undefined ? "" : v)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function applyI18n() {
+    document.documentElement.lang = lang;
+    $$("[data-i18n]").forEach(function (el) { el.textContent = t(el.getAttribute("data-i18n")); });
+    $$("[data-i18n-ph]").forEach(function (el) { el.placeholder = t(el.getAttribute("data-i18n-ph")); });
+    fillFilters();
+    renderAll();
+    // Le viste generate via JavaScript vanno ridisegnate nella nuova lingua.
+    if ($("#view-metrics").classList.contains("active")) loadMetrics();
+    if ($("#view-audit").classList.contains("active")) loadAudit();
+  }
+
+  function fillFilters() {
+    var o = $("#f-origin"), s = $("#f-status");
+    var ov = o.value, sv = s.value;
+    o.innerHTML = '<option value="">' + esc(t("filter.allOrigins")) + "</option>" +
+      ["internal", "marketplace", "third_party"].map(function (k) {
+        return '<option value="' + k + '">' + esc(t("origin." + k)) + "</option>";
+      }).join("");
+    s.innerHTML = '<option value="">' + esc(t("filter.allStatus")) + "</option>" +
+      ["registered", "active", "suspended", "retired"].map(function (k) {
+        return '<option value="' + k + '">' + esc(t("status." + k)) + "</option>";
+      }).join("");
+    o.value = ov; s.value = sv;
+  }
+
+  function notice(text, kind) {
+    $("#notice").innerHTML = '<div class="msg ' + (kind || "ok") + '">' + esc(text) + "</div>";
+    if (kind !== "err") setTimeout(function () { $("#notice").innerHTML = ""; }, 3500);
+  }
+
+  function api(method, path, body) {
+    var opts = { method: method, headers: { "Accept": "application/json" } };
+    if (body !== undefined) {
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    return fetch("/api" + path, opts).then(function (r) {
+      return r.text().then(function (txt) {
+        var data = null;
+        try { data = txt ? JSON.parse(txt) : null; } catch (e) { data = null; }
+        if (!r.ok) {
+          var msg = srvMsg((data && data.message) || (r.status + " " + r.statusText));
+          throw new Error(msg);
+        }
+        return data;
+      });
+    }, function () { throw new Error(t("err.network")); });
+  }
+
+  function label(group, v) {
+    return v ? t(group + "." + v) : "";
+  }
+
+  // ---------- Agenti ----------
+  function loadAgents() {
+    var p = [];
+    var q = $("#f-q").value.trim(), o = $("#f-origin").value, s = $("#f-status").value;
+    if (q) p.push("q=" + encodeURIComponent(q));
+    if (o) p.push("origin=" + encodeURIComponent(o));
+    if (s) p.push("status=" + encodeURIComponent(s));
+    return api("GET", "/agents" + (p.length ? "?" + p.join("&") : "")).then(function (d) {
+      state.agents = d || [];
+      return api("GET", "/agents/inactive?days=30").then(function (rows) {
+        state.inactive = {};
+        (rows || []).forEach(function (r) { state.inactive[String(r.id)] = r.last_activity_at || null; });
+      }).catch(function () { state.inactive = {}; });
+    }).then(function () {
+      renderAgents();
+    }).catch(function (e) { notice(e.message, "err"); });
+  }
+
+  // Attivita' degli agenti: un agente senza attivita' negli ultimi 30 giorni e' segnalato.
+  function activityCell(a) {
+    var inact = state.inactive || {};
+    if (!(String(a.id) in inact)) return '<span class="act-ok">' + esc(t("act.active")) + "</span>";
+    var last = inact[String(a.id)];
+    return '<span class="act-warn">' + esc(t("act.inactive")) + "</span>" + (last ? '<div class="help">' + esc(String(last).slice(0, 10)) + "</div>" : '<div class="help">' + esc(t("act.never")) + "</div>");
+  }
+  function renderAgents() {
+    var body = $("#agents-body");
+    if (!state.agents.length) {
+      body.innerHTML = '<tr><td colspan="7">' + esc(t("msg.empty")) + "</td></tr>";
+      return;
+    }
+    body.innerHTML = state.agents.map(function (a) {
+      return "<tr>" +
+        "<td><strong>" + esc(a.name) + "</strong><div class='help'>" + esc(a.model || "") + "</div></td>" +
+        "<td>" + esc(label("origin", a.origin)) + "</td>" +
+        '<td><span class="badge ' + esc(a.status) + '">' + esc(label("status", a.status)) + "</span></td>" +
+        "<td>" + esc(a.owner || "") + "</td>" +
+        "<td>" + esc(a.cost_monthly) + " " + esc(a.currency || "") + "</td>" +
+        "<td>" + activityCell(a) + "</td>" +
+        '<td style="white-space:nowrap">' +
+        '<button class="btn" data-edit-agent="' + a.id + '">' + esc(t("btn.edit")) + "</button> " +
+        '<button class="btn danger" data-del-agent="' + a.id + '">' + esc(t("btn.delete")) + "</button>" +
+        "</td></tr>";
+    }).join("");
+  }
+
+  // ---------- Configurazioni ----------
+  function loadConfigs() {
+    return api("GET", "/configurations").then(function (d) {
+      state.configs = d || [];
+      renderConfigs();
+    }).catch(function (e) { notice(e.message, "err"); });
+  }
+
+  function renderConfigs() {
+    var body = $("#configs-body");
+    if (!state.configs.length) {
+      body.innerHTML = '<tr><td colspan="5">' + esc(t("msg.empty")) + "</td></tr>";
+      return;
+    }
+    body.innerHTML = state.configs.map(function (c) {
+      return "<tr>" +
+        "<td><code>" + esc(c.key) + "</code></td>" +
+        "<td>" + esc(c.value) + "</td>" +
+        "<td>" + esc(label("scope", c.scope)) + (c.agent_id ? " #" + esc(c.agent_id) : "") + "</td>" +
+        "<td>" + esc(c.description || "") + "</td>" +
+        '<td style="white-space:nowrap">' +
+        '<button class="btn" data-edit-config="' + c.id + '">' + esc(t("btn.edit")) + "</button> " +
+        '<button class="btn danger" data-del-config="' + c.id + '">' + esc(t("btn.delete")) + "</button>" +
+        "</td></tr>";
+    }).join("");
+  }
+
+  // ---------- Metriche e audit ----------
+  function loadMetrics() {
+    return api("GET", "/metrics/summary").then(function (m) {
+      m = m || {};
+      var by = m.by_origin || {}, st = m.by_status || {};
+      $("#kpis").innerHTML =
+        kpi(m.agents_total || 0, t("metrics.total")) +
+        kpi((st.active || 0), t("metrics.active")) +
+        kpi((m.cost_monthly_total || 0) + " " + (m.currency || "EUR"), t("metrics.cost"));
+      $("#by-origin").innerHTML = bars(by, "origin") + "<h3>" + esc(t("metrics.byStatus")) + "</h3>" + bars(st, "status");
+    }).catch(function (e) { notice(e.message, "err"); });
+  }
+  function kpi(v, l) { return '<div class="kpi"><b>' + esc(v) + "</b><span>" + esc(l) + "</span></div>"; }
+  function bars(obj, group) {
+    var keys = Object.keys(obj);
+    if (!keys.length) return '<p class="help">' + esc(t("msg.empty")) + "</p>";
+    var max = Math.max.apply(null, keys.map(function (k) { return obj[k]; })) || 1;
+    return keys.map(function (k) {
+      var w = Math.round((obj[k] / max) * 100);
+      return '<div style="display:flex;gap:10px;align-items:center;margin:6px 0">' +
+        '<div style="width:160px">' + esc(label(group, k)) + "</div>" +
+        '<div style="flex:1;background:var(--line);border-radius:4px"><div style="width:' + w + '%;height:14px;background:var(--accent);border-radius:4px"></div></div>' +
+        '<div style="width:40px;text-align:right">' + esc(obj[k]) + "</div></div>";
+    }).join("");
+  }
+
+  function loadAudit() {
+    return api("GET", "/audit?limit=50").then(function (d) {
+      var rows = d || [];
+      $("#audit-body").innerHTML = rows.length ? rows.map(function (r) {
+        return "<tr><td>" + esc(r.at) + "</td><td>" + esc(r.actor) + "</td><td>" + esc(aTr("aact", r.action)) +
+          "</td><td>" + esc(aTr("aent", r.entity)) + " #" + esc(r.entity_id) + "</td><td>" + esc(auditDetail(r.detail)) + "</td></tr>";
+      }).join("") : '<tr><td colspan="5">' + esc(t("msg.empty")) + "</td></tr>";
+    }).catch(function (e) { notice(e.message, "err"); });
+  }
+
+  function renderAll() { renderAgents(); renderConfigs(); }
+
+  // ---------- Dialogo di modifica ----------
+  var dlg = $("#dlg");
+  var editing = null; // {kind, id}
+
+  function openForm(kind, record) {
+    editing = { kind: kind, id: record ? record.id : null };
+    var title = kind === "agent"
+      ? (record ? t("dlg.editAgent") : t("dlg.addAgent"))
+      : (record ? t("dlg.editConfig") : t("dlg.addConfig"));
+    $("#dlg-title").textContent = title;
+    var html = '<div class="form-grid">';
+    FIELDS[kind].forEach(function (f) {
+      var name = f[0], lab = t(f[1]), type = f[2];
+      var val = record && record[name] !== undefined && record[name] !== null ? record[name] : "";
+      var id = "fld-" + name;
+      html += "<div><label for='" + id + "'>" + esc(lab) + "</label>";
+      if (type === "textarea") {
+        html += "<textarea id='" + id + "' rows='3' data-field='" + name + "'>" + esc(val) + "</textarea>";
+      } else if (type === "select") {
+        html += "<select id='" + id + "' data-field='" + name + "'>" + f[3].map(function (o) {
+          var shown = name === "interacts_with_people" ? (o === "true" ? t("f.yes") : t("f.no")) : kind === "agent" && name === "currency" ? o : (kind === "agent" ? label(name === "origin" ? "origin" : "status", o) : (name === "scope" ? label("scope", o) : o));
+          return "<option value='" + esc(o) + "'" + (String(val) === o ? " selected" : "") + ">" + esc(shown) + "</option>";
+        }).join("") + "</select>";
+      } else if (type === "agentselect") {
+        html += "<select id='" + id + "' data-field='" + name + "'><option value=''></option>" +
+          state.agents.map(function (a) {
+            return "<option value='" + a.id + "'" + (String(val) === String(a.id) ? " selected" : "") + ">" + esc(a.name) + "</option>";
+          }).join("") + "</select>";
+      } else {
+        html += "<input id='" + id + "' type='" + (type === "number" ? "number" : "text") + "' step='0.01' data-field='" + name + "' value='" + esc(val) + "'>";
+      }
+      html += "</div>";
+    });
+    html += "</div>";
+    $("#dlg-body").innerHTML = html + "<div id='dlg-err'></div>";
+    $("#dlg-actions").innerHTML =
+      '<button class="btn primary" id="dlg-save">' + esc(t("btn.save")) + "</button>" +
+      '<button class="btn" id="dlg-cancel">' + esc(t("btn.cancel")) + "</button>";
+    dlg.showModal();
+  }
+
+  function openDelete(kind, record) {
+    editing = { kind: kind, id: record.id, del: true };
+    $("#dlg-title").textContent = t(kind === "agent" ? "dlg.deleteAgent" : "dlg.deleteConfig");
+    $("#dlg-body").innerHTML = "<p>" + esc(record.name || record.key) + "</p><p class='help'>" + esc(t("dlg.deleteText")) + "</p><div id='dlg-err'></div>";
+    $("#dlg-actions").innerHTML =
+      '<button class="btn danger" id="dlg-save">' + esc(t("btn.confirmDelete")) + "</button>" +
+      '<button class="btn" id="dlg-cancel">' + esc(t("btn.cancel")) + "</button>";
+    dlg.showModal();
+  }
+
+  function collect(kind) {
+    var out = {};
+    $$("#dlg-body [data-field]").forEach(function (el) {
+      var k = el.getAttribute("data-field"), v = el.value;
+      if (el.type === "number") v = v === "" ? 0 : parseFloat(v);
+      if (k === "agent_id") v = v ? parseInt(v, 10) : null;
+      if (k === "interacts_with_people") v = v === "true";
+      if (k === "interaction_language") v = String(v || "").trim() || null;
+      out[k] = v;
+    });
+    return out;
+  }
+
+  function saveForm() {
+    if (!editing) return;
+    var kind = editing.kind;
+    var base = kind === "agent" ? "/agents" : "/configurations";
+    if (editing.del) {
+      return api("DELETE", base + "/" + editing.id).then(function () {
+        dlg.close(); notice(t("msg.deleted")); refresh(kind);
+      }).catch(showErr);
+    }
+    var body = collect(kind);
+    if (kind === "agent" && !String(body.name || "").trim()) return showErr(new Error(t("msg.required")));
+    if (kind === "config" && !String(body.key || "").trim()) return showErr(new Error(t("msg.required")));
+    var p = editing.id ? api("PUT", base + "/" + editing.id, body) : api("POST", base, body);
+    return p.then(function () {
+      dlg.close(); notice(t("msg.saved")); refresh(kind);
+    }).catch(showErr);
+  }
+
+  function showErr(e) {
+    var el = $("#dlg-err");
+    if (el) el.innerHTML = '<div class="msg err">' + esc(e.message) + "</div>";
+    else notice(e.message, "err");
+  }
+
+  function refresh(kind) {
+    if (kind === "agent") { loadAgents(); loadMetrics(); } else { loadConfigs(); }
+  }
+
+  // ---------- Eventi ----------
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest("button");
+    if (!b) return;
+    if (b.hasAttribute("data-view")) return showView(b.getAttribute("data-view"));
+    if (b.id === "btn-add-agent") return openForm("agent", null);
+    if (b.id === "btn-add-config") return openForm("config", null);
+    if (b.id === "dlg-cancel") return dlg.close();
+    if (b.id === "dlg-save") return saveForm();
+    var id;
+    if ((id = b.getAttribute("data-edit-agent"))) return openForm("agent", findBy(state.agents, id));
+    if ((id = b.getAttribute("data-del-agent"))) return openDelete("agent", findBy(state.agents, id));
+    if ((id = b.getAttribute("data-edit-config"))) return openForm("config", findBy(state.configs, id));
+    if ((id = b.getAttribute("data-del-config"))) return openDelete("config", findBy(state.configs, id));
+  });
+
+  function findBy(list, id) {
+    for (var i = 0; i < list.length; i++) if (String(list[i].id) === String(id)) return list[i];
+    return null;
+  }
+
+  function showView(name) {
+    $$("nav button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-view") === name); });
+    $$("section.view").forEach(function (s) { s.classList.toggle("active", s.id === "view-" + name); });
+    if (name === "agents") loadAgents();
+    if (name === "configs") loadConfigs();
+    if (name === "metrics") loadMetrics();
+    if (name === "audit") loadAudit();
+  }
+
+  ["#f-q", "#f-origin", "#f-status"].forEach(function (s) {
+    $(s).addEventListener("input", loadAgents);
+    $(s).addEventListener("change", loadAgents);
+  });
+
+  $("#lang").addEventListener("change", function (e) {
+    lang = e.target.value;
+    try { localStorage.setItem("gencut.lang", lang); } catch (x) { /* ignorato */ }
+    applyI18n();
+  });
+
+  // ---------- Avvio ----------
+  try {
+    var saved = localStorage.getItem("gencut.lang");
+    if (saved && I18N[saved]) lang = saved;
+  } catch (x) { /* ignorato */ }
+  $("#lang").value = lang;
+  applyI18n();
+  loadAgents();
+  loadConfigs();
+  loadMetrics();
+})();
+</script>
+<script src="/nav.js?v=7"></script>
+</body>
+</html>

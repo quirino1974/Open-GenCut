@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open-GenCut - Marketplace</title>
+<style>
+  :root { --bg:#f5f7fa; --panel:#fff; --ink:#1c2530; --muted:#5d6b7a; --accent:#1f6feb; --accent-ink:#fff; --danger:#c62828; --ok:#2e7d32; --warn:#b26a00; --line:#d9e0e7; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --accent-ink:#0b1220; --danger:#ef5350; --ok:#66bb6a; --warn:#ffb74d; --line:#2a3644; }
+  }
+  :root[data-theme="dark"] { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --accent-ink:#0b1220; --danger:#ef5350; --ok:#66bb6a; --warn:#ffb74d; --line:#2a3644; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,"Segoe UI",Roboto,sans-serif; }
+  button, .btn, select, input, textarea { font:inherit; color:var(--ink); }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; padding:14px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:20px; margin:0; } header h1 span { color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+  .btn, nav button { border:1px solid var(--line); background:var(--panel); padding:7px 12px; border-radius:6px; cursor:pointer; text-decoration:none; }
+  .btn.primary, nav button.active { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .btn.danger { color:var(--danger); }
+  select, input, textarea { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:7px 9px; max-width:100%; }
+  main { padding:16px; max-width:1100px; margin:0 auto; }
+  section.view { display:none; } section.view.active { display:block; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-size:13px; font-weight:600; }
+  .help { color:var(--muted); font-size:13px; }
+  .msg { padding:10px 12px; border-radius:6px; border:1px solid var(--line); margin-bottom:12px; }
+  .msg.err { color:var(--danger); border-color:var(--danger); } .msg.ok { color:var(--ok); border-color:var(--ok); }
+  .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; }
+  .form-grid label { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; }
+  .form-grid select, .form-grid input, .form-grid textarea { width:100%; }
+  dialog { border:1px solid var(--line); border-radius:10px; background:var(--panel); color:var(--ink); width:min(640px,94vw); padding:0; }
+  dialog::backdrop { background:rgba(0,0,0,.4); }
+  .alpha-tag { display:inline-block; margin-left:6px; padding:1px 8px; border-radius:6px; background:#f9a825; color:#1c2530; font-size:12px; font-weight:700; vertical-align:middle; letter-spacing:.04em; }
+  .alpha-badge { font-size:12px; color:var(--danger); border:1px solid var(--danger); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+  @media (max-width:640px) { th,td { font-size:13px; } }
+</style>
+<link rel="stylesheet" href="/theme.css?v=1">
+</head>
+<body>
+<header>
+  <h1>Open-GenCut <span>AMP</span> <span class="alpha-tag">Alfa</span> - <span data-i18n="title">Marketplace</span></h1>
+  <span class="alpha-badge" data-i18n="alpha">Versione alfa - non usare in produzione</span>
+  <div class="row" style="margin:0">
+    <select id="lang" aria-label="Language" style="width:auto">
+      <option value="it">Italiano</option><option value="en">English</option>
+      <option value="fr">Français</option><option value="de">Deutsch</option>
+    </select>
+  </div>
+</header>
+<div id="gc-nav"></div>
+<main>
+  <div id="notice"></div>
+  <nav class="row">
+    <button data-view="list" class="active" data-i18n="nav.list">Inserzioni</button>
+    <button data-view="req" data-i18n="nav.req">Richieste</button>
+    <button data-view="help" data-i18n="nav.help">Aiuto</button>
+  </nav>
+
+  <!-- INSERZIONI -->
+  <section class="view active" id="v-list">
+    <div class="row"><button class="btn primary" id="l-add" data-i18n="btn.add">Aggiungi</button></div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.name">Nome</th><th data-i18n="c.provider">Fornitore</th><th data-i18n="c.price">Prezzo</th><th data-i18n="c.review">Revisione</th><th data-i18n="c.status">Stato</th><th></th>
+    </tr></thead><tbody id="l-body"></tbody></table></div>
+  </section>
+
+  <!-- Richieste -->
+  <section class="view" id="v-req">
+    <div class="row">
+      <select id="r-status" style="width:auto"></select>
+      <button class="btn primary" id="r-add" data-i18n="btn.request">Richiedi</button>
+    </div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.listing">Inserzione</th><th data-i18n="c.requestedBy">Richiedente</th><th data-i18n="c.status">Stato</th><th data-i18n="c.when">Quando</th><th></th>
+    </tr></thead><tbody id="r-body"></tbody></table></div>
+  </section>
+
+  <!-- AIUTO -->
+  <section class="view" id="v-help">
+    <div class="card">
+      <h2 data-i18n="help.title">Guida in linea</h2>
+      <p data-i18n="help.body">Il marketplace raccoglie gli agenti di terze parti. Un agente può entrare nel registro solo se la sua inserzione è pubblicata e approvata dalla revisione di sicurezza. Ogni richiesta va approvata; poi si provisiona l'agente, che entra nel registro con origine marketplace. Una richiesta si provisiona una sola volta.</p>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <div style="padding:18px">
+    <h2 id="dlg-title"></h2>
+    <span class="alpha-tag">Alfa</span>
+    <div id="dlg-body"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="dlg-ok"></button>
+      <button class="btn" id="dlg-cancel"></button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+  var I = {
+    it: { title:"Marketplace", alpha:"Versione alfa - non usare in produzione", back:"Registro agenti",
+      nav:{list:"Inserzioni",req:"Richieste",help:"Aiuto"},
+      btn:{add:"Aggiungi",request:"Richiedi",save:"Salva",cancel:"Annulla",confirm:"Conferma",edit:"Modifica",del:"Elimina",approve:"Approva",reject:"Rifiuta",provision:"Provisiona"},
+      c:{name:"Nome",provider:"Fornitore",price:"Prezzo",review:"Revisione",status:"Stato",listing:"Inserzione",requestedBy:"Richiedente",when:"Quando",yes:"Sì",no:"No",
+        pending:"In attesa",approved:"Approvata",rejected:"Rifiutata",provisioned:"Provisionata",listed:"Pubblicata",hidden:"Nascosta",
+        rv_pending:"In revisione",rv_approved:"Approvata",rv_rejected:"Respinta",pm_free:"Gratuita",pm_subscription:"Abbonamento",pm_per_use:"A consumo",
+        framework:"Framework",version:"Versione",priceModel:"Modello di prezzo",amount:"Importo",currency:"Valuta",certified:"Certificato",review2:"Revisione di sicurezza",listStatus:"Stato inserzione",justification:"Motivazione",all:"Tutti"},
+      dlg:{add:"Nuova inserzione",edit:"Modifica inserzione",request:"Nuova richiesta",delete:"Eliminare l'inserzione?"},
+      ok:"Fatto.", err:"Errore", empty:"Nessun elemento.", provisioned:"Agente creato nel registro:", errName:"Il nome è obbligatorio", errProvider:"Il fornitore è obbligatorio", errListing:"Seleziona un'inserzione.",
+      help:{title:"Guida in linea",body:"Il marketplace raccoglie gli agenti di terze parti. Un agente può entrare nel registro solo se la sua inserzione è pubblicata e approvata dalla revisione di sicurezza. Ogni richiesta va approvata; poi si provisiona l'agente, che entra nel registro con origine marketplace. Una richiesta si provisiona una sola volta."} },
+    en: { title:"Marketplace", alpha:"Alpha version - do not use in production", back:"Agent registry",
+      nav:{list:"Listings",req:"Requests",help:"Help"},
+      btn:{add:"Add",request:"Request",save:"Save",cancel:"Cancel",confirm:"Confirm",edit:"Edit",del:"Delete",approve:"Approve",reject:"Reject",provision:"Provision"},
+      c:{name:"Name",provider:"Provider",price:"Price",review:"Review",status:"Status",listing:"Listing",requestedBy:"Requester",when:"When",yes:"Yes",no:"No",
+        pending:"Pending",approved:"Approved",rejected:"Rejected",provisioned:"Provisioned",listed:"Listed",hidden:"Hidden",
+        rv_pending:"Under review",rv_approved:"Approved",rv_rejected:"Rejected",pm_free:"Free",pm_subscription:"Subscription",pm_per_use:"Pay per use",
+        framework:"Framework",version:"Version",priceModel:"Price model",amount:"Amount",currency:"Currency",certified:"Certified",review2:"Security review",listStatus:"Listing status",justification:"Justification",all:"All"},
+      dlg:{add:"New listing",edit:"Edit listing",request:"New request",delete:"Delete the listing?"},
+      ok:"Done.", err:"Error", empty:"No items.", provisioned:"Agent created in the registry:", errName:"Name is required", errProvider:"Provider is required", errListing:"Select a listing.",
+      help:{title:"Online help",body:"The marketplace collects third-party agents. An agent can enter the registry only if its listing is published and approved by the security review. Every request must be approved; then the agent is provisioned and enters the registry with marketplace origin. A request is provisioned only once."} },
+    fr: { title:"Marketplace", alpha:"Version alpha - ne pas utiliser en production", back:"Registre des agents",
+      nav:{list:"Offres",req:"Demandes",help:"Aide"},
+      btn:{add:"Ajouter",request:"Demander",save:"Enregistrer",cancel:"Annuler",confirm:"Confirmer",edit:"Modifier",del:"Supprimer",approve:"Approuver",reject:"Refuser",provision:"Provisionner"},
+      c:{name:"Nom",provider:"Fournisseur",price:"Prix",review:"Revue",status:"Statut",listing:"Offre",requestedBy:"Demandeur",when:"Date",yes:"Oui",no:"Non",
+        pending:"En attente",approved:"Approuvée",rejected:"Refusée",provisioned:"Provisionnée",listed:"Publiée",hidden:"Masquée",
+        rv_pending:"En revue",rv_approved:"Approuvée",rv_rejected:"Rejetée",pm_free:"Gratuite",pm_subscription:"Abonnement",pm_per_use:"À l'usage",
+        framework:"Framework",version:"Version",priceModel:"Modèle de prix",amount:"Montant",currency:"Devise",certified:"Certifié",review2:"Revue de sécurité",listStatus:"Statut de l'offre",justification:"Motivation",all:"Tous"},
+      dlg:{add:"Nouvelle offre",edit:"Modifier l'offre",request:"Nouvelle demande",delete:"Supprimer l'offre ?"},
+      ok:"Fait.", err:"Erreur", empty:"Aucun élément.", provisioned:"Agent créé dans le registre :", errName:"Le nom est obligatoire", errProvider:"Le fournisseur est obligatoire", errListing:"Sélectionnez une offre.",
+      help:{title:"Aide en ligne",body:"La marketplace rassemble les agents de tiers. Un agent ne peut entrer dans le registre que si son offre est publiée et approuvée par la revue de sécurité. Chaque demande doit être approuvée ; l'agent est ensuite provisionné et entre dans le registre avec l'origine marketplace. Une demande n'est provisionnée qu'une fois."} },
+    de: { title:"Marketplace", alpha:"Alpha-Version - nicht in der Produktion verwenden", back:"Agentenregister",
+      nav:{list:"Angebote",req:"Anfragen",help:"Hilfe"},
+      btn:{add:"Hinzufügen",request:"Anfordern",save:"Speichern",cancel:"Abbrechen",confirm:"Bestätigen",edit:"Bearbeiten",del:"Löschen",approve:"Genehmigen",reject:"Ablehnen",provision:"Bereitstellen"},
+      c:{name:"Name",provider:"Anbieter",price:"Preis",review:"Prüfung",status:"Status",listing:"Angebot",requestedBy:"Anfragende Person",when:"Zeitpunkt",yes:"Ja",no:"Nein",
+        pending:"Ausstehend",approved:"Genehmigt",rejected:"Abgelehnt",provisioned:"Bereitgestellt",listed:"Veröffentlicht",hidden:"Verborgen",
+        rv_pending:"In Prüfung",rv_approved:"Genehmigt",rv_rejected:"Abgelehnt",pm_free:"Kostenlos",pm_subscription:"Abonnement",pm_per_use:"Nutzungsabhängig",
+        framework:"Framework",version:"Version",priceModel:"Preismodell",amount:"Betrag",currency:"Währung",certified:"Zertifiziert",review2:"Sicherheitsprüfung",listStatus:"Angebotsstatus",justification:"Begründung",all:"Alle"},
+      dlg:{add:"Neues Angebot",edit:"Angebot bearbeiten",request:"Neue Anfrage",delete:"Angebot löschen?"},
+      ok:"Erledigt.", err:"Fehler", empty:"Keine Einträge.", provisioned:"Agent im Register angelegt:", errName:"Name ist erforderlich", errProvider:"Anbieter ist erforderlich", errListing:"Wählen Sie ein Angebot.",
+      help:{title:"Online-Hilfe",body:"Der Marketplace sammelt Agenten von Drittanbietern. Ein Agent kann nur ins Register, wenn sein Angebot veröffentlicht und von der Sicherheitsprüfung genehmigt ist. Jede Anfrage muss genehmigt werden; danach wird der Agent bereitgestellt und erhält im Register den Ursprung Marketplace. Eine Anfrage wird nur einmal bereitgestellt."} }
+  };
+  // Messaggi del server tradotti per lingua (fallback: prefisso Errore e testo originale).
+  var SRV = {"it": [["non richiedibile", "Inserzione non richiedibile: deve essere pubblicata e con revisione di sicurezza approvata"], ["provider e name sono obbligatori", "Fornitore e nome sono obbligatori"], ["listing_id e requested_by sono obbligatori", "Inserzione e richiedente sono obbligatori"], ["transizione non consentita", "Transizione di stato non consentita"], ["price_model deve essere", "Il modello di prezzo non è valido"], ["currency deve essere", "La valuta deve essere EUR o USD"], ["non trovato", "Elemento non trovato"]], "en": [["non richiedibile", "Listing not requestable: it must be published and approved by the security review"], ["provider e name sono obbligatori", "Provider and name are required"], ["listing_id e requested_by sono obbligatori", "Listing and requester are required"], ["transizione non consentita", "State transition not allowed"], ["price_model deve essere", "Invalid price model"], ["currency deve essere", "Currency must be EUR or USD"], ["non trovato", "Item not found"]], "fr": [["non richiedibile", "Offre non demandable : elle doit être publiée et approuvée par la revue de sécurité"], ["provider e name sono obbligatori", "Le fournisseur et le nom sont obligatoires"], ["listing_id e requested_by sono obbligatori", "L'offre et le demandeur sont obligatoires"], ["transizione non consentita", "Transition d'état non autorisée"], ["price_model deve essere", "Modèle de prix non valide"], ["currency deve essere", "La devise doit être EUR ou USD"], ["non trovato", "Élément introuvable"]], "de": [["non richiedibile", "Angebot nicht anforderbar: Es muss veröffentlicht und sicherheitsgeprüft genehmigt sein"], ["provider e name sono obbligatori", "Anbieter und Name sind erforderlich"], ["listing_id e requested_by sono obbligatori", "Angebot und Anfragende Person sind erforderlich"], ["transizione non consentita", "Zustandsübergang nicht zulässig"], ["price_model deve essere", "Ungültiges Preismodell"], ["currency deve essere", "Die Währung muss EUR oder USD sein"], ["non trovato", "Element nicht gefunden"]]};
+  function srvMsg(m) {
+    var rows = SRV[lang] || [];
+    for (var i = 0; i < rows.length; i++) { if (String(m).indexOf(rows[i][0]) >= 0) return rows[i][1]; }
+    return t("err") + ": " + m;
+  }
+  var lang = "it", listings = [], requests = [], dlgOk = null;
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return document.querySelectorAll(s); };
+  function t(k) { var p = k.split("."), d = I[lang], i = 0; for (; i < p.length; i++) { d = d && d[p[i]]; } return d !== undefined ? d : k; }
+  function esc(v) { return String(v === null || v === undefined ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function notice(m, k) { $("#notice").innerHTML = '<div class="msg ' + (k || "ok") + '">' + esc(m) + "</div>"; if (k !== "err") setTimeout(function () { $("#notice").innerHTML = ""; }, 4500); }
+  function api(method, path, body) {
+    var o = { method: method, headers: { "Accept": "application/json" } };
+    if (body !== undefined) { o.headers["Content-Type"] = "application/json"; o.body = JSON.stringify(body); }
+    return fetch("/api" + path, o).then(function (r) {
+      return r.text().then(function (txt) {
+        var d = null; try { d = txt ? JSON.parse(txt) : null; } catch (e) { d = null; }
+        if (!r.ok) throw new Error(srvMsg((d && d.message) || (r.status + " " + r.statusText)));
+        return d;
+      });
+    });
+  }
+  function fail(e) { notice(e.message, "err"); }
+  function closeDlg() { $("#dlg-err").innerHTML = ""; $("#dlg").close(); }
+  function openDialog(title, html, okLabel, onOk) {
+    $("#dlg-title").textContent = title;
+    $("#dlg-body").innerHTML = html + "<div id='dlg-err'></div>";
+    $("#dlg-ok").textContent = okLabel; $("#dlg-cancel").textContent = t("btn.cancel");
+    dlgOk = onOk; $("#dlg").showModal();
+  }
+  function dlgErr(m) { $("#dlg-err").innerHTML = '<div class="msg err">' + esc(m) + "</div>"; }
+  function sel(id, list, selected) {
+    return '<select id="' + id + '">' + list.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (String(o[0]) === String(selected) ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select>";
+  }
+  function listingName(id) { var l = listings.filter(function (x) { return String(x.id) === String(id); })[0]; return l ? l.name : id; }
+  function badge(v, group) { return esc(t(group + "." + v)); }
+
+  function loadListings() {
+    return api("GET", "/marketplace/listings").then(function (rows) {
+      listings = rows || [];
+      $("#l-body").innerHTML = listings.length ? listings.map(function (l) {
+        var price = l.price_model === "free" ? t("c.pm_free") : (l.price + " " + l.currency + " (" + t("c.pm_" + l.price_model) + ")");
+        return "<tr><td>" + esc(l.name) + "</td><td>" + esc(l.provider) + "</td><td>" + esc(price) + "</td><td>" + esc(t("c.rv_" + l.security_review)) +
+          "</td><td>" + badge(l.status, "c") + '</td><td style="white-space:nowrap"><button class="btn" data-l-edit="' + l.id + '">' + esc(t("btn.edit")) + '</button> <button class="btn danger" data-l-del="' + l.id + '">' + esc(t("btn.del")) + "</button></td></tr>";
+      }).join("") : '<tr><td colspan="6">' + esc(t("empty")) + "</td></tr>";
+    }).catch(fail);
+  }
+  function loadRequests() {
+    var s = $("#r-status").value;
+    return api("GET", "/marketplace/requests" + (s ? "?status=" + s : "")).then(function (rows) {
+      requests = rows || [];
+      $("#r-body").innerHTML = requests.length ? requests.map(function (r) {
+        var acts = "";
+        if (r.status === "pending") acts = '<button class="btn primary" data-r-do="approve" data-id="' + r.id + '">' + esc(t("btn.approve")) + '</button> <button class="btn danger" data-r-do="reject" data-id="' + r.id + '">' + esc(t("btn.reject")) + "</button>";
+        if (r.status === "approved") acts = '<button class="btn primary" data-r-do="provision" data-id="' + r.id + '">' + esc(t("btn.provision")) + "</button>";
+        return "<tr><td>" + esc(listingName(r.listing_id)) + "</td><td>" + esc(r.requested_by) + "</td><td>" + badge(r.status, "c") + "</td><td>" + esc(r.created_at) + "</td><td>" + acts + "</td></tr>";
+      }).join("") : '<tr><td colspan="5">' + esc(t("empty")) + "</td></tr>";
+    }).catch(fail);
+  }
+
+  function listingForm(l) {
+    l = l || { provider: "", name: "", version: "", framework: "", price_model: "free", price: 0, currency: "EUR", certified: false, security_review: "pending", status: "hidden" };
+    var pm = [["free", t("c.pm_free")], ["subscription", t("c.pm_subscription")], ["per_use", t("c.pm_per_use")]];
+    var rv = [["pending", t("c.rv_pending")], ["approved", t("c.rv_approved")], ["rejected", t("c.rv_rejected")]];
+    var st = [["listed", t("c.listed")], ["hidden", t("c.hidden")]];
+    openDialog(l.id ? t("dlg.edit") : t("dlg.add"), '<div class="form-grid">' +
+      '<div><label for="df-prov">' + esc(t("c.provider")) + ' *</label><input id="df-prov" value="' + esc(l.provider) + '"></div>' +
+      '<div><label for="df-name">' + esc(t("c.name")) + ' *</label><input id="df-name" value="' + esc(l.name) + '"></div>' +
+      '<div><label for="df-ver">' + esc(t("c.version")) + '</label><input id="df-ver" value="' + esc(l.version || "") + '"></div>' +
+      '<div><label for="df-fw">' + esc(t("c.framework")) + '</label><input id="df-fw" value="' + esc(l.framework || "") + '"></div>' +
+      '<div><label for="df-pm">' + esc(t("c.priceModel")) + "</label>" + sel("df-pm", pm, l.price_model) + "</div>" +
+      '<div><label for="df-price">' + esc(t("c.amount")) + '</label><input id="df-price" type="number" step="0.01" min="0" value="' + esc(l.price) + '"></div>' +
+      '<div><label for="df-cur">' + esc(t("c.currency")) + "</label>" + sel("df-cur", [["EUR", "EUR"], ["USD", "USD"]], l.currency) + "</div>" +
+      '<div><label for="df-cert">' + esc(t("c.certified")) + "</label>" + sel("df-cert", [["true", t("c.yes")], ["false", t("c.no")]], l.certified ? "true" : "false") + "</div>" +
+      '<div><label for="df-rv">' + esc(t("c.review2")) + "</label>" + sel("df-rv", rv, l.security_review) + "</div>" +
+      '<div><label for="df-st">' + esc(t("c.listStatus")) + "</label>" + sel("df-st", st, l.status) + "</div></div>", t("btn.save"), function () {
+      var name = $("#df-name").value.trim(), prov = $("#df-prov").value.trim();
+      if (!prov) return dlgErr(t("errProvider")); if (!name) return dlgErr(t("errName"));
+      var pmv = $("#df-pm").value;
+      var body = { provider: prov, name: name, version: $("#df-ver").value, framework: $("#df-fw").value, price_model: pmv,
+        price: pmv === "free" ? 0 : (+$("#df-price").value || 0), currency: $("#df-cur").value, certified: $("#df-cert").value === "true",
+        security_review: $("#df-rv").value, status: $("#df-st").value };
+      var p = l.id ? api("PUT", "/marketplace/listings/" + l.id, body) : api("POST", "/marketplace/listings", body);
+      p.then(function () { closeDlg(); notice(t("ok")); loadListings(); }).catch(function (x) { dlgErr(x.message); });
+    });
+  }
+  function requestForm() {
+    if (!listings.length) return notice(t("errListing"), "err");
+    openDialog(t("dlg.request"), '<div class="form-grid">' +
+      '<div><label for="df-lst">' + esc(t("c.listing")) + "</label>" + '<select id="df-lst">' + listings.map(function (l) { return '<option value="' + l.id + '">' + esc(l.name) + "</option>"; }).join("") + "</select></div>" +
+      '<div><label for="df-by">' + esc(t("c.requestedBy")) + ' *</label><input id="df-by"></div>' +
+      '<div><label for="df-just">' + esc(t("c.justification")) + '</label><input id="df-just"></div></div>', t("btn.request"), function () {
+      var by = $("#df-by").value.trim(); if (!by) return dlgErr(t("errName"));
+      api("POST", "/marketplace/requests", { listing_id: +$("#df-lst").value, requested_by: by, justification: $("#df-just").value })
+        .then(function () { closeDlg(); notice(t("ok")); loadRequests(); }).catch(function (x) { dlgErr(x.message); });
+    });
+  }
+  function view(name) {
+    $$("nav button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-view") === name); });
+    $$("section.view").forEach(function (s) { s.classList.toggle("active", s.id === "v-" + name); });
+    if (name === "list") loadListings();
+    if (name === "req") loadRequests();
+  }
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.title = t("title") + " - Open-GenCut";
+    $$("[data-i18n]").forEach(function (el) { el.textContent = t(el.getAttribute("data-i18n")); });
+    $("#dlg-ok").textContent = t("btn.confirm"); $("#dlg-cancel").textContent = t("btn.cancel");
+    $("#r-status").innerHTML = ["", "pending", "approved", "rejected", "provisioned"].map(function (x) { return '<option value="' + x + '">' + esc(x ? t("c." + x) : t("c.all")) + "</option>"; }).join("");
+    loadListings().then(function () { view(document.querySelector("nav button.active").getAttribute("data-view")); });
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.hasAttribute("data-view")) return view(b.getAttribute("data-view"));
+    var id;
+    if (b.id === "l-add") return listingForm(null);
+    if (b.id === "r-add") return requestForm();
+    if ((id = b.getAttribute("data-l-edit"))) return listingForm(listings.filter(function (l) { return String(l.id) === id; })[0]);
+    if ((id = b.getAttribute("data-l-del"))) return openDialog(t("dlg.delete"), "<p class='help'>" + esc(t("dlg.delete")) + "</p>", t("btn.confirm"), function () {
+      api("DELETE", "/marketplace/listings/" + id).then(function () { closeDlg(); notice(t("ok")); loadListings(); }).catch(function (x) { dlgErr(x.message); });
+    });
+    if ((id = b.getAttribute("data-r-do"))) {
+      var rid = b.getAttribute("data-id");
+      if (id === "provision") return api("POST", "/marketplace/requests/" + rid + "/provision", {}).then(function (ag) {
+        notice(t("provisioned") + " " + (ag && ag.name ? ag.name : "")); loadRequests();
+      }).catch(fail);
+      return api("POST", "/marketplace/requests/" + rid + "/" + id, {}).then(function () { notice(t("ok")); loadRequests(); }).catch(fail);
+    }
+    if (b.id === "dlg-ok") return dlgOk && dlgOk();
+    if (b.id === "dlg-cancel") return closeDlg();
+  });
+  $("#r-status").addEventListener("change", loadRequests);
+  $("#lang").addEventListener("change", function (e) { lang = e.target.value; try { localStorage.setItem("gencut.lang", lang); } catch (x) {} $("#notice").innerHTML = ""; applyLang(); });
+  try { var s = localStorage.getItem("gencut.lang"); if (s && I[s]) lang = s; } catch (x) {}
+  $("#lang").value = lang;
+  applyLang();
+})();
+</script>
+<script src="/nav.js?v=7"></script>
+</body>
+</html>

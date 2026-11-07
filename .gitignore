@@ -1,0 +1,15 @@
+# Cache e artefatti di Python
+__pycache__/
+*.pyc
+
+# Segreti e configurazioni locali: mai versionati
+.env
+docker/tls/
+*.pem
+*.key
+
+# File temporanei e di lavoro
+*.bak
+*.log
+*.tmp
+.DS_Store

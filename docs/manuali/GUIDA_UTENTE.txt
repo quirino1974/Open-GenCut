@@ -1,0 +1,258 @@
+OPEN-GENCUT - GUIDA UTENTE
+--------------------------
+
+Autore: Quirino Scaramastra
+
+Versione: bozza v0.1, 2026-11-07. Destinatari: chi usa la piattaforma per registrare e governare gli agenti.
+Stato: bozza; traduzioni in docs/manuali/en, fr, de.
+
+Le pagine sono disponibili in quattro lingue: italiano, inglese, francese e tedesco. Si sceglie la lingua dal selettore nella barra in alto.
+
+Le tre pagine sono:
+- Registro: /index.html, con le sezioni Agenti, Configurazioni, Metriche, Tracciamento e Aiuto.
+- Integrazioni: /integrations.html, con le sezioni Approvazioni, Risorse, Allowlist, Limiti, Verifica accesso, Registro accessi e Aiuto.
+- Ciclo di vita: /lifecycle.html, con le sezioni Valutazioni, Panoramica, Versioni, Deploy e promozioni, Monitoraggio e Aiuto.
+
+I nomi dei pulsanti sono quelli della pagina in italiano. Per chi automatizza, l'equivalente nell'API è indicato tra parentesi.
+
+1. Registro (punto 1)
+---------------------
+
+Il registro raccoglie gli agenti e le loro configurazioni globali o per agente.
+
+Agenti
+
+- Nella sezione Agenti, il pulsante Aggiungi agente apre la maschera "Nuovo agente". Il campo obbligatorio è il nome; l'origine va scelta tra Interno, Marketplace e Terze parti.
+- Per modificare un agente si usa il pulsante Modifica sulla sua riga; per cancellarlo, Cancella, poi Conferma cancellazione. La cancellazione è definitiva e viene registrata nel Tracciamento.
+- Stato: Registrato, Attivo, Sospeso, Dismesso. Lo stato si cambia dal ciclo di vita (sezione 3), non da qui.
+- Costo mensile e valuta (EUR o USD). Il totale nelle metriche è in EUR; gli importi in USD sono mostrati a parte.
+- Trasparenza: il campo "Interagisce con persone" indica se l'agente interagisce con persone. In quel caso va compilato "Lingua dell'interazione" (es. it, en-GB).
+- Salvare con Salva; annullare con Annulla. Modificare un agente sostituisce tutti i suoi campi: inviare anche quelli che non si cambiano.
+- Gli agenti si filtrano con la ricerca per nome o proprietario e con i menu Tutte le origini e Tutti gli stati.
+
+(API: /api/agents)
+
+Configurazioni
+
+- Nella sezione Configurazioni, il pulsante Aggiungi configurazione apre la maschera "Nuova configurazione".
+- Una configurazione ha una chiave unica nell'intero registro, un valore e un ambito: Globale oppure Agente. Per l'ambito Agente va scelto l'agente.
+
+(API: /api/configurations)
+
+Metriche e Tracciamento
+
+- La sezione Metriche mostra il numero di agenti (totali e attivi), per origine e per stato, e il costo mensile totale.
+- La sezione Tracciamento mostra ogni modifica, con data, utente, azione, entità e dettaglio. Ogni riga è collegata alla precedente con un hash: la verifica della catena è in /api/audit/verify.
+
+2. Integrazioni (punto 2)
+-------------------------
+
+Qui si controlla quali agenti possono usare quali risorse esterne: modelli LLM, API, server MCP e fonti dati.
+
+Risorse
+
+Nella sezione Risorse, il pulsante Aggiungi registra una risorsa con tipo (Modello LLM, API, Server MCP, Fonte dati), nome ed endpoint facoltativo. Una risorsa disabilitata non è utilizzabile da nessun agente. Si modifica con Modifica e si cancella con Elimina.
+
+Allowlist
+
+Nella sezione Allowlist, il pulsante Consenti risorsa dà a un agente il permesso di usare una risorsa. Senza questa riga, l'accesso è negato (not_allowed).
+
+Una riga può essere marcata come Approvazione richiesta (sensibile). In quel caso ogni accesso richiede un'approvazione (sezione 2.4).
+
+Limiti
+
+Nella sezione Limiti, il pulsante Nuovo limite imposta per una coppia agente-risorsa:
+- il massimo di chiamate al giorno (in UTC), campo "Max chiamate/giorno";
+- il massimo di costo al mese, campo "Max costo/mese", nella valuta scelta.
+
+Campo vuoto = nessun limite. Un accesso oltre il limite è negato (daily_call_limit o monthly_cost_limit).
+
+Verifica accesso
+
+La sezione Verifica accesso simula una richiesta di accesso con il pulsante Verifica e registra. L'esito è Consentito oppure Negato, con il motivo. I motivi, nell'ordine in cui vengono verificati:
+1. resource_disabled: la risorsa è disabilitata.
+2. agent_retired: l'agente è dismesso.
+3. agent_not_active: l'agente non è attivo (sospeso o registrato).
+4. not_allowed: la coppia non è in allowlist.
+5. approval_required: la coppia è sensibile e manca un'approvazione.
+6. daily_call_limit e monthly_cost_limit: limiti superati.
+
+Un accesso negato non consuma budget. Un accesso permesso registra il costo dichiarato.
+
+La sezione Registro accessi mostra tutte le decisioni, permesse e negate, con il motivo.
+
+Approvazioni (requisito R1)
+
+Per le coppie sensibili:
+- Quando un accesso viene negato per approval_required, il sistema apre da solo una richiesta in attesa e ne mostra il numero.
+- Nella sezione Approvazioni si sceglie Approva oppure Rifiuta. Una richiesta già approvata o rifiutata non si cambia. Dalla stessa sezione si può creare una richiesta con Richiedi approvazione, inserendo la motivazione.
+- Un'approvazione vale per un solo accesso: dopo quell'accesso lo stato diventa "Usata", e il successivo accesso richiede una nuova approvazione.
+
+(API: /api/integrations/allowlist, /api/integrations/limits, /api/integrations/check, /api/integrations/approvals)
+
+3. Ciclo di vita (punti 3 e 4)
+------------------------------
+
+Qui si gestisce la vita di un agente, dalle versioni alla dismissione.
+
+Stati dell'agente
+
+- Registrato → Attivo → Sospeso (e di nuovo Attivo): il pulsante Sospendi sospende, Riattiva riattiva; si può fare in qualsiasi momento.
+- Dismesso: il pulsante Dismetti chiede conferma ("Dismettere l'agente?"). La dismissione è definitiva. Dopo la dismissione l'agente non riceve più accessi, deploy o promozioni.
+
+Versioni
+
+Nella sezione Versioni, il pulsante Nuova versione registra una versione dell'agente (campo "Etichetta versione"). Non si può registrare due volte la stessa versione.
+
+Ambienti, deploy e promozioni
+
+Ci sono tre ambienti: Sviluppo, Staging e Produzione. Ogni ambiente ha una versione corrente.
+- Deploy (sezione "Deploy e promozioni"): porta una versione registrata in un ambiente.
+- Promuovi: copia la versione corrente dello Sviluppo nello Staging, e dello Staging nella Produzione. Chiede conferma ("Promuovere la versione?").
+- Ogni deploy e promozione finisce nel registro, con data, versione, ambiente di partenza e nota.
+
+Un agente sospeso o dismesso non riceve né deploy né promozioni.
+
+Valutazioni (requisito R3)
+
+Nella sezione Valutazioni, il pulsante Registra valutazione registra l'esito per una versione: "superata" oppure "non superata".
+
+Prima di andare in Staging o in Produzione serve una valutazione superata per la versione da portare. La regola si applica all'ultima valutazione registrata:
+- se l'ultima valutazione è "non superata", il passaggio è bloccato, anche se una precedente era superata;
+- se l'ultima valutazione riguarda un'altra versione, il passaggio è bloccato.
+
+Lo Sviluppo non richiede valutazioni.
+
+Monitoraggio
+
+La sezione Monitoraggio mostra, per un ambiente e un periodo: chiamate, errori e tasso di errore, latenza media e massima, token e costo. Le chiamate vengono registrate dal sistema che usa l'agente. Il pulsante Aggiorna ricarica i dati.
+
+(API: /api/lifecycle/agents/{id}, /versions, /deploy, /promote, /evaluations, /performance, /suspend, /reactivate, /retire)
+
+4. Domande frequenti
+--------------------
+
+Perché un deploy viene rifiutato con "agente sospeso"?
+Un agente sospeso non riceve nuove versioni. Riattivarlo con Riattiva, poi riprovare.
+
+Perché la promozione verso lo Staging è bloccata?
+Manca una valutazione superata per la versione da portare. Registrare una valutazione "superata" con Registra valutazione e riprovare.
+
+Ho dismesso un agente per errore. Posso riattivarlo?
+No. La dismissione è definitiva. Registrare un nuovo agente.
+
+Perché un accesso viene negato con "approvazione richiesta" anche se l'ho già approvato?
+Un'approvazione vale per un solo accesso. Dopo l'uso, la richiesta passa a "Usata": serve una nuova approvazione.
+
+Il totale dei costi non include un agente.
+Gli agenti in USD non si sommano a quelli in EUR senza un tasso di cambio. Sono mostrati a parte.
+
+Il Tracciamento mostra "legacy" su alcune righe.
+Sono righe scritte prima dell'introduzione della catena di hash. Non sono verificabili, ma sono conservate.
+
+5. Limiti noti
+--------------
+
+- Non c'è accesso con utente e password: chi usa la pagina è considerato autorizzato. Usare solo in rete controllata.
+- Il costo di una chiamata è quello dichiarato da chi la invia.
+- Le approvazioni non scadono.
+
+6. Pagine aggiuntive (punti 4-8 e identità)
+-------------------------------------------
+
+Tutte le pagine nuove sono indicate come Versione alfa - non usare in produzione: il titolo in alto lo ricorda. Hanno lo stesso selettore della lingua e lo stesso link "Registro agenti".
+
+- Conformità: /compliance.html, con le sezioni Panoramica, Politiche, Agente, Sicurezza dati, Controlli e Aiuto.
+- Guardrail: /guardrails.html, con le sezioni Regole, Prova, Registro, Riepilogo e Aiuto.
+- Valutazione: /evaluation.html, con le sezioni Tracce, Riepilogo, Regole, Giudizi e Aiuto.
+- Marketplace: /marketplace.html, con le sezioni Inserzioni, Richieste e Aiuto.
+- FinOps: /finops.html, con le sezioni Agente, Riepilogo, Registra esito e Aiuto.
+- Identità: scheda "Identità" nella pagina del Ciclo di vita.
+
+6.1 Conformità (punto 4)
+
+- Gateway AI: sono risorse di tipo "Gateway AI" (valore ai_gateway), registrabili dal menu del tipo di risorsa nella pagina Integrazioni.
+- Sicurezza dati: per ogni risorsa si imposta la classificazione (Pubblico, Interno, Riservato, Ristretto), se i dati sono cifrati a riposo e in transito, se sono ammessi dati personali, e la conservazione in giorni. Senza una scheda, valgono i valori predefiniti (Interno, nessuna cifratura, nessun dato personale).
+- Politiche: il pulsante Aggiungi (finestra "Nuova politica") crea una regola con un tipo tra quattro: trasparenza richiesta, valutazione prima della produzione, classificazione massima, approvazione per dati personali. Il parametro è in formato JSON. Nella scheda Agente si vede, per ogni politica attiva, se l'agente la rispetta e il motivo.
+- Controlli: la sezione Controlli mostra la libreria dei framework (per esempio GDPR, AI Act, ISO 27001, ISO 42001) con i loro controlli. Il pulsante Nuovo framework e Nuovo controllo li aggiungono. I dati iniziali sono da validare dal responsabile conformità.
+- Valutazione dei controlli: per ogni agente, ogni controllo ha un esito: Conforme, Non conforme, Non valutato, Non applicabile, con una nota di evidenza.
+- Panoramica: per ogni framework mostra i controlli, la percentuale di agenti conformi e le politiche in fallimento.
+
+Limite dichiarato: i titoli dei controlli sono sintesi da validare; non sono il testo normativo.
+
+6.2 Guardrail (punto 5)
+
+- Regole: il pulsante Aggiungi crea una guardrail con un tipo tra: mascheramento dati personali (pii_mask), blocco dati personali (pii_block), blocco per parole chiave, lunghezza massima, limite di frequenza al minuto, sovrascrittura delle istruzioni (prompt_injection). Ambito: Globale, Agente o Risorsa.
+- Prova: il pulsante Valuta applica le regole attive a un testo di prova, in ingresso o in uscita, e mostra l'esito (Consentito, Mascherato, Bloccato) con le violazioni.
+- Registro: ogni valutazione è registrata con esito, violazioni, lunghezza del testo e impronta SHA-256. Il registro non contiene il testo.
+- Riepilogo: conteggi per esito e per tipo nelle ultime 24 ore.
+
+Un blocco prevale su un mascheramento. Con esito Bloccato il testo restituito è vuoto. I dati personali riconosciuti sono: email, telefono, codice fiscale, IBAN (con controllo mod 97), numero di carta (con controllo di Luhn).
+
+Limite dichiarato: il rilevamento usa regole ed espressioni regolari, non modelli di intelligenza artificiale. Può sbagliare in entrambi i sensi: vanno considerati come un primo filtro.
+
+6.3 Valutazione (punto 6)
+
+- Tracce: il pulsante Registra traccia registra una esecuzione: trace, esito (successo, fallimento, parziale), obiettivo raggiunto, costo e passi. Ogni passo ha un tipo (llm, tool, reasoning, memory), un nome, token, latenza ed esito. Il testo dei passi non viene salvato.
+- Regole: il pulsante Nuova regola crea una regola per tipo, una sola per tipo: token massimi per traccia, latenza massima, tasso di errore massimo, deriva massima, giorni massimi per la memoria. Ogni regola genera violazioni quando una traccia la supera.
+- Riepilogo: tasso di successo, tasso di obiettivo, latenza media, tasso di errore, numero di violazioni, punteggio medio, indicazione di deriva e passi di memoria stale.
+- Giudizi: il pulsante Registra giudizio registra un punteggio da 1 a 5 con il nome del giudice (predefinito "manual"). I giudizi arrivano da un giudice esterno, persona o strumento: la piattaforma non li produce.
+
+Limiti dichiarati: nessun giudizio automatico con modello; nessuna ingestione nel formato OTLP. La deriva confronta le ultime 10 tracce con le 10 precedenti.
+
+6.4 Marketplace (punto 7)
+
+- Inserzioni: il pulsante Aggiungi pubblica un agente di terze parti: fornitore, nome, versione, framework, modello di prezzo (gratuito, abbonamento, a consumo), prezzo, valuta, certificazione, revisione di sicurezza (In attesa, Approvata, Rifiutata) e stato (Pubblicata, Nascosta). Modifica con Modifica, cancella con Elimina.
+- Richieste: il pulsante Richiedi chiede l'adozione di un'inserzione. È ammessa solo se l'inserzione è pubblicata e con revisione approvata.
+- Decisione: Approva o Rifiuta una richiesta in attesa. Provisiona crea l'agente nel registro con origine marketplace, stato registrato, fornitore, versione e framework dell'inserzione. Una richiesta si provisiona una sola volta.
+
+6.5 FinOps (punto 8)
+
+- Registra esito: il pulsante Registra annota un esito (successo, fallimento, parziale) con il valore in EUR e il periodo.
+- Agente: con un intervallo di date, mostra costo a consumo, costo fisso, costo totale, valore, ROI, costo per successo e il conteggio degli esiti.
+- Riepilogo: totali per framework o per origine nell'intervallo di date.
+
+Convenzioni: ROI = (valore - costo) / costo, vuoto se il costo è zero. Costo per successo = costo totale / successi, vuoto senza successi. Gli importi in USD non vengono sommati a quelli in EUR: il costo fisso di un agente in USD è mostrato a parte.
+
+6.6 Identità per agente
+
+Nella scheda Identità della pagina del Ciclo di vita si vede l'identificativo dell'agente (un UUID assegnato alla creazione) e il suo stato. Il pulsante Revoca identità chiede una conferma: la revoca è definitiva e l'agente non può più accedere a nessuna risorsa. Dopo la revoca il pulsante è disattivato.
+
+La sospensione blocca l'agente subito; la riattivazione va richiesta esplicitamente. Sono due meccanismi diversi: la revoca dell'identità non si annulla.
+
+7. Accesso e sicurezza
+----------------------
+
+- Accesso: dalla pagina di login si inseriscono nome utente e password. Dopo cinque tentativi sbagliati in dieci minuti l'accesso per quell'utente è bloccato per un po'; il messaggio non rivela se il nome esiste.
+- Primo accesso e cambio password: se la password è temporanea, la piattaforma porta alla pagina Account e chiede di cambiarla prima di tutto il resto. La nuova password deve avere almeno 8 caratteri, al massimo 72, e non può coincidere con il nome utente.
+- Profilo: la pagina Account permette di cambiare la password. Dal nome utente in fondo alla barra si arriva alla pagina Account e da lì si esce dalla sessione.
+- Ruoli: amministratore (tutto, compresa la gestione utenti); responsabile conformità (crea, modifica, approva); operatore (crea e modifica, senza approvare); auditor (sola lettura con tracciamento e registro accessi); consultazione (sola lettura su registro e metriche); sistema di integrazione (solo le chiamate degli agenti, senza accesso alle pagine).
+- Utenti (solo amministratore): la pagina Utenti crea gli utenti, cambia il ruolo, elimina un utente (non te stesso né l'ultimo amministratore attivo) e genera una password temporanea per il reset. La password temporanea è mostrata una sola volta: va consegnata all'utente, che la cambia al primo accesso.
+- Limiti: nessun recupero via email (il reset lo fa un amministratore); accesso in HTTPS con certificato del laboratorio (vedi il manuale operativo).
+
+8. Chat con i modelli
+---------------------
+
+- La pagina Chat conversa con un modello di OpenAI o di Anthropic. Si sceglie il fornitore, il modello, l'agente e la risorsa del fornitore, e si inserisce la chiave API.
+- La chiave API resta nel campo della pagina, in memoria: la piattaforma non la salva, non la registra e non la mostra mai. Chiudendo la pagina va inserita di nuovo.
+- Ogni risposta mostra la decisione (consentito, negato, bloccato), i token e la latenza. Il testo dei messaggi non viene salvato dalla piattaforma.
+- Se un guardrail blocca il messaggio o la risposta, la decisione mostrata è "bloccato".
+
+9. Server MCP e strumenti
+-------------------------
+
+- Nella pagina Integrazioni un server MCP è una risorsa del tipo server MCP, con il suo indirizzo. Gli strumenti del server si registrano a mano oppure con la sincronizzazione, che legge l'elenco dal server.
+- Il permesso per uno strumento si concede a un agente nell'allowlist degli strumenti. Senza permesso la chiamata è negata (tool_not_allowed).
+- Nella scheda Prova chiamata si sceglie agente, risorsa e strumento, si inseriscono gli argomenti in JSON, e si vedono la decisione e il risultato.
+
+10. Agenti senza attività
+-------------------------
+
+Nel registro la colonna Attività mostra se l'agente è attivo, senza attività o mai attivo, con la data dell'ultimo evento. Un agente attivo senza chiamate, decisioni di accesso o tracce negli ultimi 30 giorni è segnalato come senza attività.
+
+11. Navigazione e guida in linea
+--------------------------------
+
+- La barra in alto è uguale in tutte le pagine: si passa da una sezione all'altra senza tornare al registro.
+- La pagina Guida spiega le sezioni; la pagina Informazioni descrive il progetto.
+- La lingua scelta resta memorizzata nel browser. Alcune pagine (ad esempio chat, guardrail e valutazione) hanno il selettore della lingua.

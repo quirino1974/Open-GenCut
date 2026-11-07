@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open-GenCut - Valutazione</title>
+<style>
+  :root { --bg:#f5f7fa; --panel:#fff; --ink:#1c2530; --muted:#5d6b7a; --accent:#1f6feb; --accent-ink:#fff; --danger:#c62828; --ok:#2e7d32; --warn:#b26a00; --line:#d9e0e7; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --accent-ink:#0b1220; --danger:#ef5350; --ok:#66bb6a; --warn:#ffb74d; --line:#2a3644; }
+  }
+  :root[data-theme="dark"] { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --accent-ink:#0b1220; --danger:#ef5350; --ok:#66bb6a; --warn:#ffb74d; --line:#2a3644; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,"Segoe UI",Roboto,sans-serif; }
+  button, .btn, select, input, textarea { font:inherit; color:var(--ink); }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; padding:14px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:20px; margin:0; } header h1 span { color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+  .btn, nav button { border:1px solid var(--line); background:var(--panel); padding:7px 12px; border-radius:6px; cursor:pointer; text-decoration:none; }
+  .btn.primary, nav button.active { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .btn.danger { color:var(--danger); }
+  select, input, textarea { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:7px 9px; max-width:100%; }
+  main { padding:16px; max-width:1100px; margin:0 auto; }
+  section.view { display:none; } section.view.active { display:block; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-size:13px; font-weight:600; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .kpi { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .kpi b { display:block; font-size:22px; } .kpi span { color:var(--muted); font-size:13px; }
+  .help { color:var(--muted); font-size:13px; }
+  .flag { color:var(--danger); font-weight:600; } .okflag { color:var(--ok); font-weight:600; }
+  .msg { padding:10px 12px; border-radius:6px; border:1px solid var(--line); margin-bottom:12px; }
+  .msg.err { color:var(--danger); border-color:var(--danger); } .msg.ok { color:var(--ok); border-color:var(--ok); }
+  .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; }
+  .form-grid label { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; }
+  .form-grid select, .form-grid input, .form-grid textarea { width:100%; }
+  dialog { border:1px solid var(--line); border-radius:10px; background:var(--panel); color:var(--ink); width:min(640px,94vw); padding:0; }
+  dialog::backdrop { background:rgba(0,0,0,.4); }
+  .alpha-tag { display:inline-block; margin-left:6px; padding:1px 8px; border-radius:6px; background:#f9a825; color:#1c2530; font-size:12px; font-weight:700; vertical-align:middle; letter-spacing:.04em; }
+  .alpha-badge { font-size:12px; color:var(--danger); border:1px solid var(--danger); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+  @media (max-width:640px) { th,td { font-size:13px; } }
+</style>
+<link rel="stylesheet" href="/theme.css?v=1">
+</head>
+<body>
+<header>
+  <h1>Open-GenCut <span>AMP</span> <span class="alpha-tag">Alfa</span> - <span data-i18n="title">Valutazione</span></h1>
+  <span class="alpha-badge" data-i18n="alpha">Versione alfa - non usare in produzione</span>
+  <div class="row" style="margin:0">
+    <select id="lang" aria-label="Language" style="width:auto">
+      <option value="it">Italiano</option><option value="en">English</option>
+      <option value="fr">Français</option><option value="de">Deutsch</option>
+    </select>
+  </div>
+</header>
+<div id="gc-nav"></div>
+<main>
+  <div id="notice"></div>
+  <nav class="row">
+    <button data-view="traces" class="active" data-i18n="nav.traces">Tracce</button>
+    <button data-view="sum" data-i18n="nav.sum">Riepilogo</button>
+    <button data-view="rules" data-i18n="nav.rules">Regole</button>
+    <button data-view="scores" data-i18n="nav.scores">Giudizi</button>
+    <button data-view="help" data-i18n="nav.help">Aiuto</button>
+  </nav>
+
+  <!-- TRACCE -->
+  <section class="view active" id="v-traces">
+    <div class="row">
+      <select id="tr-agent" aria-label="agent" style="min-width:240px"></select>
+      <button class="btn primary" id="tr-add" data-i18n="btn.addTrace">Registra traccia</button>
+    </div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.when">Quando</th><th data-i18n="c.trace">Traccia</th><th data-i18n="c.outcome">Esito</th><th data-i18n="c.goal">Obiettivo</th><th data-i18n="c.steps">Passi</th><th data-i18n="c.cost">Costo</th>
+    </tr></thead><tbody id="tr-body"></tbody></table></div>
+  </section>
+
+  <!-- RIEPILOGO -->
+  <section class="view" id="v-sum">
+    <div class="row"><select id="sum-agent" aria-label="agent" style="min-width:240px"></select></div>
+    <div class="grid" id="sum-kpis"></div>
+    <div class="card wrap"><h3 data-i18n="h.violations">Violazioni recenti</h3><table><thead><tr>
+      <th data-i18n="c.when">Quando</th><th data-i18n="c.rule">Regola</th><th data-i18n="c.trace">Traccia</th><th data-i18n="c.detail">Dettaglio</th>
+    </tr></thead><tbody id="vio-body"></tbody></table></div>
+  </section>
+
+  <!-- REGOLE -->
+  <section class="view" id="v-rules">
+    <div class="row"><button class="btn primary" id="rule-add" data-i18n="btn.addRule">Nuova regola</button></div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.rule">Regola</th><th data-i18n="c.value">Valore</th><th></th>
+    </tr></thead><tbody id="rule-body"></tbody></table></div>
+    <p class="help" data-i18n="help.rules">Una sola regola per tipo. Il valore è la soglia: per drift, uno scarto tra 0 e 1; per la tasso di errore, tra 0 e 1; per memoria, i giorni massimi.</p>
+  </section>
+
+  <!-- GIUDIZI -->
+  <section class="view" id="v-scores">
+    <div class="row"><button class="btn primary" id="score-add" data-i18n="btn.addScore">Registra giudizio</button></div>
+    <div class="card help" data-i18n="help.scores">I giudizi arrivano da un giudice esterno (persona o strumento): la piattaforma non li produce.</div>
+  </section>
+
+  <!-- AIUTO -->
+  <section class="view" id="v-help">
+    <div class="card">
+      <h2 data-i18n="help.title">Guida in linea</h2>
+      <p data-i18n="help.body">La valutazione controlla le tracce di esecuzione: esito, obiettivo raggiunto, latenza, token, passi di memoria. Le regole segnalano le violazioni. Il riepilogo mostra il tasso di successo, il tasso di errore e se c'è una deriva rispetto alle tracce precedenti. Il testo dei passi non viene mai salvato.</p>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <div style="padding:18px">
+    <h2 id="dlg-title"></h2>
+    <span class="alpha-tag">Alfa</span>
+    <div id="dlg-body"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="dlg-ok"></button>
+      <button class="btn" id="dlg-cancel"></button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+  var RULES = ["max_tokens_per_trace", "max_latency_ms", "max_error_rate", "drift_threshold", "memory_stale_days"];
+  var PARAM = { max_tokens_per_trace: "max", max_latency_ms: "max", max_error_rate: "max", drift_threshold: "max_delta", memory_stale_days: "max_days" };
+  var I = {
+    it: { title:"Valutazione", alpha:"Versione alfa - non usare in produzione", back:"Registro agenti",
+      nav:{traces:"Tracce",sum:"Riepilogo",rules:"Regole",scores:"Giudizi",help:"Aiuto"},
+      btn:{addTrace:"Registra traccia",addRule:"Nuova regola",addScore:"Registra giudizio",save:"Salva",cancel:"Annulla",confirm:"Conferma",del:"Elimina",edit:"Modifica"},
+      c:{when:"Quando",trace:"Traccia",outcome:"Esito",goal:"Obiettivo",steps:"Passi",cost:"Costo",rule:"Regola",value:"Valore",detail:"Dettaglio",agent:"Agente",score:"Punteggio",judge:"Giudice",note:"Nota",yes:"Sì",no:"No",
+        success:"Successo",failure:"Fallimento",partial:"Parziale",successRate:"Tasso di successo",goalRate:"Obiettivo raggiunto",avgLatency:"Latenza media (ms)",avgTokens:"Token medi per traccia",errorRate:"Tasso di errore",violations:"Violazioni",avgScore:"Punteggio medio",drift:"Deriva",driftDelta:"Scarto di deriva",stale:"Passi di memoria obsoleti",traces:"Tracce"},
+      rt:{max_tokens_per_trace:"Token massimi per traccia",max_latency_ms:"Latenza massima (ms)",max_error_rate:"Tasso di errore massimo (0-1)",drift_threshold:"Soglia di deriva (0-1)",memory_stale_days:"Età massima della memoria (giorni)"},
+      h:{violations:"Violazioni recenti"},
+      dlg:{addTrace:"Nuova traccia",addRule:"Nuova regola",addScore:"Nuovo giudizio"},
+      f:{traceId:"Identificativo traccia *",steps:"Passi (JSON)",goal:"Obiettivo raggiunto",env:"Ambiente"},
+      vdet: {"max_tokens_per_trace": "Traccia con {value} token, oltre il massimo {max}", "max_latency_ms": "Latenza di {value} ms, oltre il massimo {max} ms", "max_error_rate": "Tasso di errore {rate}, oltre il massimo {max}", "drift_threshold": "Deriva di {delta}, oltre la soglia {max_delta}", "memory_stale_days": "Passi di memoria obsoleti: {count}, soglia {max_days} giorno/i"}, ok:"Salvato.", err:"Errore", empty:"Nessun elemento.", need:"Seleziona un agente.", none:"nessuna", help:{title:"Guida in linea",body:"La valutazione controlla le tracce di esecuzione: esito, obiettivo raggiunto, latenza, token, passi di memoria. Le regole segnalano le violazioni. Il riepilogo mostra il tasso di successo, il tasso di errore e se c'è una deriva rispetto alle tracce precedenti. Il testo dei passi non viene mai salvato.",rules:"Una sola regola per tipo. Il valore è la soglia: per la deriva uno scarto tra 0 e 1; per il tasso di errore un valore tra 0 e 1; per la memoria, i giorni massimi.",scores:"I giudizi arrivano da un giudice esterno (persona o strumento): la piattaforma non li produce."} },
+    en: { title:"Evaluation", alpha:"Alpha version - do not use in production", back:"Agent registry",
+      nav:{traces:"Traces",sum:"Summary",rules:"Rules",scores:"Judgements",help:"Help"},
+      btn:{addTrace:"Record trace",addRule:"New rule",addScore:"Record judgement",save:"Save",cancel:"Cancel",confirm:"Confirm",del:"Delete",edit:"Edit"},
+      c:{when:"When",trace:"Trace",outcome:"Outcome",goal:"Goal",steps:"Steps",cost:"Cost",rule:"Rule",value:"Value",detail:"Detail",agent:"Agent",score:"Score",judge:"Judge",note:"Note",yes:"Yes",no:"No",
+        success:"Success",failure:"Failure",partial:"Partial",successRate:"Success rate",goalRate:"Goal reached",avgLatency:"Average latency (ms)",avgTokens:"Average tokens per trace",errorRate:"Error rate",violations:"Violations",avgScore:"Average score",drift:"Drift",driftDelta:"Drift delta",stale:"Stale memory steps",traces:"Traces"},
+      rt:{max_tokens_per_trace:"Maximum tokens per trace",max_latency_ms:"Maximum latency (ms)",max_error_rate:"Maximum error rate (0-1)",drift_threshold:"Drift threshold (0-1)",memory_stale_days:"Maximum memory age (days)"},
+      h:{violations:"Recent violations"},
+      dlg:{addTrace:"New trace",addRule:"New rule",addScore:"New judgement"},
+      f:{traceId:"Trace identifier *",steps:"Steps (JSON)",goal:"Goal reached",env:"Environment"},
+      vdet: {"max_tokens_per_trace": "Trace with {value} tokens, above the maximum {max}", "max_latency_ms": "Latency of {value} ms, above the maximum {max} ms", "max_error_rate": "Error rate {rate}, above the maximum {max}", "drift_threshold": "Drift of {delta}, above the threshold {max_delta}", "memory_stale_days": "Stale memory steps: {count}, limit {max_days} day(s)"}, ok:"Saved.", err:"Error", empty:"No items.", need:"Select an agent.", none:"none", help:{title:"Online help",body:"Evaluation checks execution traces: outcome, goal reached, latency, tokens, memory steps. Rules flag violations. The summary shows success rate, error rate and whether there is drift compared with earlier traces. The text of the steps is never stored.",rules:"One rule per type. The value is the threshold: for drift a delta between 0 and 1; for error rate a value between 0 and 1; for memory, the maximum days.",scores:"Judgements come from an external judge (a person or a tool): the platform does not produce them."} },
+    fr: { title:"Évaluation", alpha:"Version alpha - ne pas utiliser en production", back:"Registre des agents",
+      nav:{traces:"Traces",sum:"Synthèse",rules:"Règles",scores:"Jugements",help:"Aide"},
+      btn:{addTrace:"Enregistrer une trace",addRule:"Nouvelle règle",addScore:"Enregistrer un jugement",save:"Enregistrer",cancel:"Annuler",confirm:"Confirmer",del:"Supprimer",edit:"Modifier"},
+      c:{when:"Date",trace:"Trace",outcome:"Résultat",goal:"Objectif",steps:"Étapes",cost:"Coût",rule:"Règle",value:"Valeur",detail:"Détail",agent:"Agent",score:"Score",judge:"Juge",note:"Note",yes:"Oui",no:"Non",
+        success:"Succès",failure:"Échec",partial:"Partiel",successRate:"Taux de succès",goalRate:"Objectif atteint",avgLatency:"Latence moyenne (ms)",avgTokens:"Jetons moyens par trace",errorRate:"Taux d'erreur",violations:"Violations",avgScore:"Score moyen",drift:"Dérive",driftDelta:"Écart de dérive",stale:"Étapes de mémoire obsolètes",traces:"Traces"},
+      rt:{max_tokens_per_trace:"Jetons maximum par trace",max_latency_ms:"Latence maximale (ms)",max_error_rate:"Taux d'erreur maximal (0-1)",drift_threshold:"Seuil de dérive (0-1)",memory_stale_days:"Âge maximal de la mémoire (jours)"},
+      h:{violations:"Violations récentes"},
+      dlg:{addTrace:"Nouvelle trace",addRule:"Nouvelle règle",addScore:"Nouveau jugement"},
+      f:{traceId:"Identifiant de trace *",steps:"Étapes (JSON)",goal:"Objectif atteint",env:"Environnement"},
+      vdet: {"max_tokens_per_trace": "Trace avec {value} jetons, au-delà du maximum {max}", "max_latency_ms": "Latence de {value} ms, au-delà du maximum {max} ms", "max_error_rate": "Taux d'erreur {rate}, au-delà du maximum {max}", "drift_threshold": "Dérive de {delta}, au-delà du seuil {max_delta}", "memory_stale_days": "Étapes de mémoire obsolètes : {count}, seuil {max_days} jour(s)"}, ok:"Enregistré.", err:"Erreur", empty:"Aucun élément.", need:"Sélectionnez un agent.", none:"aucune", help:{title:"Aide en ligne",body:"L'évaluation contrôle les traces d'exécution : résultat, objectif atteint, latence, jetons, étapes de mémoire. Les règles signalent les violations. La synthèse montre le taux de succès, le taux d'erreur et l'éventuelle dérive par rapport aux traces précédentes. Le texte des étapes n'est jamais enregistré.",rules:"Une seule règle par type. La valeur est le seuil : pour la dérive un écart entre 0 et 1 ; pour le taux d'erreur une valeur entre 0 et 1 ; pour la mémoire, le nombre maximal de jours.",scores:"Les jugements viennent d'un juge externe (personne ou outil) : la plateforme ne les produit pas."} },
+    de: { title:"Bewertung", alpha:"Alpha-Version - nicht in der Produktion verwenden", back:"Agentenregister",
+      nav:{traces:"Traces",sum:"Übersicht",rules:"Regeln",scores:"Urteile",help:"Hilfe"},
+      btn:{addTrace:"Trace erfassen",addRule:"Neue Regel",addScore:"Urteil erfassen",save:"Speichern",cancel:"Abbrechen",confirm:"Bestätigen",del:"Löschen",edit:"Bearbeiten"},
+      c:{when:"Zeitpunkt",trace:"Trace",outcome:"Ergebnis",goal:"Ziel",steps:"Schritte",cost:"Kosten",rule:"Regel",value:"Wert",detail:"Details",agent:"Agent",score:"Bewertung",judge:"Bewerter",note:"Notiz",yes:"Ja",no:"Nein",
+        success:"Erfolg",failure:"Fehler",partial:"Teilweise",successRate:"Erfolgsquote",goalRate:"Ziel erreicht",avgLatency:"Durchschnittliche Latenz (ms)",avgTokens:"Token pro Trace (Mittel)",errorRate:"Fehlerquote",violations:"Verstöße",avgScore:"Durchschnittliche Bewertung",drift:"Drift",driftDelta:"Drift-Abweichung",stale:"Veraltete Speicherschritte",traces:"Traces"},
+      rt:{max_tokens_per_trace:"Maximale Token pro Trace",max_latency_ms:"Maximale Latenz (ms)",max_error_rate:"Maximale Fehlerquote (0-1)",drift_threshold:"Drift-Schwelle (0-1)",memory_stale_days:"Maximales Speicheralter (Tage)"},
+      h:{violations:"Aktuelle Verstöße"},
+      dlg:{addTrace:"Neue Trace",addRule:"Neue Regel",addScore:"Neues Urteil"},
+      f:{traceId:"Trace-Kennung *",steps:"Schritte (JSON)",goal:"Ziel erreicht",env:"Umgebung"},
+      vdet: {"max_tokens_per_trace": "Trace mit {value} Token, über dem Maximum {max}", "max_latency_ms": "Latenz von {value} ms, über dem Maximum {max} ms", "max_error_rate": "Fehlerquote {rate}, über dem Maximum {max}", "drift_threshold": "Drift von {delta}, über der Schwelle {max_delta}", "memory_stale_days": "Veraltete Speicherschritte: {count}, Grenze {max_days} Tag(e)"}, ok:"Gespeichert.", err:"Fehler", empty:"Keine Einträge.", need:"Wählen Sie einen Agenten.", none:"keine", help:{title:"Online-Hilfe",body:"Die Bewertung prüft Ausführungs-Traces: Ergebnis, erreichtes Ziel, Latenz, Token, Speicherschritte. Regeln melden Verstöße. Die Übersicht zeigt Erfolgsquote, Fehlerquote und ob es eine Drift gegenüber früheren Traces gibt. Der Text der Schritte wird nie gespeichert.",rules:"Eine Regel je Typ. Der Wert ist die Schwelle: bei Drift eine Abweichung zwischen 0 und 1; bei der Fehlerquote ein Wert zwischen 0 und 1; bei Speicher die maximalen Tage.",scores:"Urteile stammen von einem externen Bewerter (Person oder Werkzeug): Die Plattform erzeugt sie nicht."} }
+  };
+  var lang = "it", agents = [], rules = [], dlgOk = null;
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return document.querySelectorAll(s); };
+  function t(k) { var p = k.split("."), d = I[lang], i = 0; for (; i < p.length; i++) { d = d && d[p[i]]; } return d !== undefined ? d : k; }
+  function esc(v) { return String(v === null || v === undefined ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function notice(m, k) { $("#notice").innerHTML = '<div class="msg ' + (k || "ok") + '">' + esc(m) + "</div>"; if (k !== "err") setTimeout(function () { $("#notice").innerHTML = ""; }, 3500); }
+  function api(method, path, body) {
+    var o = { method: method, headers: { "Accept": "application/json" } };
+    if (body !== undefined) { o.headers["Content-Type"] = "application/json"; o.body = JSON.stringify(body); }
+    return fetch("/api" + path, o).then(function (r) {
+      return r.text().then(function (txt) {
+        var d = null; try { d = txt ? JSON.parse(txt) : null; } catch (e) { d = null; }
+        if (!r.ok) throw new Error(t("err") + ": " + ((d && d.message) || (r.status + " " + r.statusText)));
+        return d;
+      });
+    });
+  }
+  function fail(e) { notice(e.message, "err"); }
+  function closeDlg() { $("#dlg-err").innerHTML = ""; $("#dlg").close(); }
+  function openDialog(title, html, okLabel, onOk) {
+    $("#dlg-title").textContent = title;
+    $("#dlg-body").innerHTML = html + "<div id='dlg-err'></div>";
+    $("#dlg-ok").textContent = okLabel; $("#dlg-cancel").textContent = t("btn.cancel");
+    dlgOk = onOk; $("#dlg").showModal();
+  }
+  function dlgErr(m) { $("#dlg-err").innerHTML = '<div class="msg err">' + esc(m) + "</div>"; }
+  function opts(list, val, label, empty) {
+    return (empty !== undefined ? '<option value="">' + esc(empty) + "</option>" : "") +
+      list.map(function (x) { return '<option value="' + esc(val(x)) + '">' + esc(label(x)) + "</option>"; }).join("");
+  }
+  function agentId() { return $("#tr-agent").value || $("#sum-agent").value; }
+  function loadAgents() {
+    return api("GET", "/agents").then(function (a) {
+      agents = a || [];
+      var o = opts(agents, function (x) { return x.id; }, function (x) { return x.name; }, t("need"));
+      $("#tr-agent").innerHTML = o; $("#sum-agent").innerHTML = o;
+    });
+  }
+  function loadTraces() {
+    var id = $("#tr-agent").value; if (!id) return;
+    return api("GET", "/evaluation/traces?agent_id=" + id + "&limit=50").then(function (rows) {
+      rows = rows || [];
+      $("#tr-body").innerHTML = rows.length ? rows.map(function (r) {
+        return "<tr><td>" + esc(r.at) + "</td><td>" + esc(r.trace_id) + "</td><td>" + esc(t("c." + r.outcome)) + "</td><td>" + (r.goal_met ? t("c.yes") : t("c.no")) +
+          "</td><td>" + esc((r.steps || []).length) + "</td><td>" + esc(r.cost) + "</td></tr>";
+      }).join("") : '<tr><td colspan="6">' + esc(t("empty")) + "</td></tr>";
+    }).catch(fail);
+  }
+  function loadSummary() {
+    var id = $("#sum-agent").value; if (!id) return;
+    api("GET", "/evaluation/agents/" + id + "/summary").then(function (s) {
+      s = s || {};
+      var pct = function (x) { return x === null || x === undefined ? "—" : Math.round(x * 100) + " %"; };
+      $("#sum-kpis").innerHTML = [
+        [s.traces || 0, t("c.traces")], [pct(s.success_rate), t("c.successRate")], [pct(s.goal_rate), t("c.goalRate")],
+        [Math.round(s.avg_latency_ms || 0), t("c.avgLatency")], [Math.round(s.avg_tokens_per_trace || 0), t("c.avgTokens")],
+        [pct(s.error_rate), t("c.errorRate")], [s.rule_violations || 0, t("c.violations")], [s.avg_score === null || s.avg_score === undefined ? "—" : Number(s.avg_score).toFixed(1), t("c.avgScore")],
+        [s.drift_flag ? t("c.yes") : t("c.no"), t("c.drift")], [s.stale_memory_steps || 0, t("c.stale")]
+      ].map(function (x) { return '<div class="kpi"><b class="' + (x[0] === t("c.yes") ? "flag" : "") + '">' + esc(x[0]) + "</b><span>" + esc(x[1]) + "</span></div>"; }).join("");
+    }).catch(fail);
+    api("GET", "/evaluation/agents/" + id + "/violations?limit=50").then(function (rows) {
+      rows = rows || [];
+      $("#vio-body").innerHTML = rows.length ? rows.map(function (v) {
+        return "<tr><td>" + esc(v.at) + "</td><td>" + esc(t("rt." + v.rule_type) !== "rt." + v.rule_type ? t("rt." + v.rule_type) : v.rule_type) + "</td><td>" + esc(v.trace_ref) + "</td><td>" + esc(vText(v)) + "</td></tr>";
+      }).join("") : '<tr><td colspan="4">' + esc(t("empty")) + "</td></tr>";
+    }).catch(fail);
+  }
+  function vText(v) {
+    var tpl = ((I[lang] && I[lang].vdet) || {})[v.rule_type];
+    if (!tpl || !v.params) return v.detail || v.rule_type;
+    return tpl.replace(/\{(\w+)\}/g, function (_, k) { var x = v.params[k]; return x === undefined || x === null ? "" : String(x); });
+  }
+  function loadRules() {
+    return api("GET", "/evaluation/rules").then(function (rows) {
+      rules = rows || [];
+      $("#rule-body").innerHTML = rules.length ? rules.map(function (r) {
+        var val = r.params ? (r.params[PARAM[r.type]] !== undefined ? r.params[PARAM[r.type]] : "") : "";
+        return "<tr><td>" + esc(t("rt." + r.type)) + "</td><td>" + esc(val) + '</td><td style="white-space:nowrap"><button class="btn" data-rule-edit="' + r.id + '">' + esc(t("btn.edit")) + '</button> <button class="btn danger" data-rule-del="' + r.id + '">' + esc(t("btn.del")) + "</button></td></tr>";
+      }).join("") : '<tr><td colspan="3">' + esc(t("empty")) + "</td></tr>";
+    }).catch(fail);
+  }
+
+  function traceForm() {
+    if (!agentId()) return notice(t("need"), "err");
+    openDialog(t("dlg.addTrace"), '<div class="form-grid">' +
+      '<div><label for="df-tid">' + esc(t("f.traceId")) + '</label><input id="df-tid"></div>' +
+      '<div><label for="df-out">' + esc(t("c.outcome")) + '</label><select id="df-out"><option value="success">' + esc(t("c.success")) + '</option><option value="failure">' + esc(t("c.failure")) + '</option><option value="partial">' + esc(t("c.partial")) + "</option></select></div>" +
+      '<div><label for="df-goal">' + esc(t("f.goal")) + '</label><select id="df-goal"><option value="true">' + esc(t("c.yes")) + '</option><option value="false">' + esc(t("c.no")) + "</option></select></div>" +
+      '<div><label for="df-cost">' + esc(t("c.cost")) + '</label><input id="df-cost" type="number" step="0.0001" min="0" value="0"></div>' +
+      '<div><label for="df-steps">' + esc(t("f.steps")) + '</label><textarea id="df-steps" rows="3">[{"type":"llm","name":"modello","tokens":1200,"latency_ms":850,"ok":true}]</textarea></div></div>', t("btn.save"), function () {
+      var tid = $("#df-tid").value.trim(); if (!tid) return dlgErr(t("err"));
+      var steps; try { steps = JSON.parse($("#df-steps").value || "[]"); } catch (e) { return dlgErr(t("err")); }
+      api("POST", "/evaluation/traces", { agent_id: +agentId(), trace_id: tid, outcome: $("#df-out").value, goal_met: $("#df-goal").value === "true", cost: +$("#df-cost").value || 0, steps: steps })
+        .then(function () { closeDlg(); notice(t("ok")); loadTraces(); loadSummary(); }).catch(function (x) { dlgErr(x.message); });
+    });
+  }
+  function ruleForm(r) {
+    r = r || { type: "max_latency_ms", params: {} };
+    openDialog(r.id ? t("btn.edit") : t("dlg.addRule"), '<div class="form-grid">' +
+      '<div><label for="df-rtype">' + esc(t("c.rule")) + '</label><select id="df-rtype">' + opts(RULES, function (x) { return x; }, function (x) { return t("rt." + x); }) + "</select></div>" +
+      '<div><label for="df-rval">' + esc(t("c.value")) + '</label><input id="df-rval" type="number" step="any" min="0"></div></div>', t("btn.save"), function () {
+      var v = $("#df-rval").value; if (v === "") return dlgErr(t("err"));
+      var type = $("#df-rtype").value; var params = {}; params[PARAM[type]] = +v;
+      var p = r.id ? api("PUT", "/evaluation/rules/" + r.id, { type: type, params: params, enabled: true }) : api("POST", "/evaluation/rules", { type: type, params: params, enabled: true });
+      p.then(function () { closeDlg(); notice(t("ok")); loadRules(); }).catch(function (x) { dlgErr(x.message); });
+    });
+    $("#df-rtype").value = r.type;
+    if (r.params && r.params[PARAM[r.type]] !== undefined) $("#df-rval").value = r.params[PARAM[r.type]];
+  }
+  function scoreForm() {
+    if (!agentId()) return notice(t("need"), "err");
+    openDialog(t("dlg.addScore"), '<div class="form-grid">' +
+      '<div><label for="df-score">' + esc(t("c.score")) + ' (1-5)</label><input id="df-score" type="number" min="1" max="5" step="1" value="3"></div>' +
+      '<div><label for="df-judge">' + esc(t("c.judge")) + '</label><input id="df-judge" value="manual"></div>' +
+      '<div><label for="df-note">' + esc(t("c.note")) + '</label><input id="df-note"></div></div>', t("btn.save"), function () {
+      api("POST", "/evaluation/agents/" + agentId() + "/scores", { score: +$("#df-score").value, judge: $("#df-judge").value, note: $("#df-note").value })
+        .then(function () { closeDlg(); notice(t("ok")); loadSummary(); }).catch(function (x) { dlgErr(x.message); });
+    });
+  }
+  function view(name) {
+    $$("nav button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-view") === name); });
+    $$("section.view").forEach(function (s) { s.classList.toggle("active", s.id === "v-" + name); });
+    if (name === "traces") loadTraces();
+    if (name === "sum") loadSummary();
+    if (name === "rules") loadRules();
+  }
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.title = t("title") + " - Open-GenCut";
+    $$("[data-i18n]").forEach(function (el) { el.textContent = t(el.getAttribute("data-i18n")); });
+    $("#dlg-ok").textContent = t("btn.confirm"); $("#dlg-cancel").textContent = t("btn.cancel");
+    loadAgents().then(function () { view(document.querySelector("nav button.active").getAttribute("data-view")); }).catch(fail);
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.hasAttribute("data-view")) return view(b.getAttribute("data-view"));
+    var id;
+    if (b.id === "tr-add") return traceForm();
+    if (b.id === "rule-add") return ruleForm(null);
+    if (b.id === "score-add") return scoreForm();
+    if ((id = b.getAttribute("data-rule-edit"))) return ruleForm(rules.filter(function (r) { return String(r.id) === id; })[0]);
+    if ((id = b.getAttribute("data-rule-del"))) return openDialog(t("btn.del"), "<p class='help'>" + esc(t("btn.del")) + "?</p>", t("btn.confirm"), function () {
+      api("DELETE", "/evaluation/rules/" + id).then(function () { closeDlg(); notice(t("ok")); loadRules(); }).catch(function (x) { dlgErr(x.message); });
+    });
+    if (b.id === "dlg-ok") return dlgOk && dlgOk();
+    if (b.id === "dlg-cancel") return closeDlg();
+  });
+  $("#tr-agent").addEventListener("change", loadTraces);
+  $("#sum-agent").addEventListener("change", loadSummary);
+  $("#lang").addEventListener("change", function (e) { lang = e.target.value; try { localStorage.setItem("gencut.lang", lang); } catch (x) {} $("#notice").innerHTML = ""; applyLang(); });
+  try { var s = localStorage.getItem("gencut.lang"); if (s && I[s]) lang = s; } catch (x) {}
+  $("#lang").value = lang;
+  applyLang();
+})();
+</script>
+<script src="/nav.js?v=7"></script>
+</body>
+</html>

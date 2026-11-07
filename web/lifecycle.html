@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open-GenCut - Ciclo di vita</title>
+<style>
+  :root { --bg:#f5f7fa; --panel:#fff; --ink:#1c2530; --muted:#5d6b7a; --accent:#1f6feb; --accent-ink:#fff; --danger:#c62828; --ok:#2e7d32; --warn:#b26a00; --line:#d9e0e7; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --accent-ink:#0b1220; --danger:#ef5350; --ok:#66bb6a; --warn:#ffb74d; --line:#2a3644; }
+  }
+  :root[data-theme="dark"] { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --accent-ink:#0b1220; --danger:#ef5350; --ok:#66bb6a; --warn:#ffb74d; --line:#2a3644; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,"Segoe UI",Roboto,sans-serif; }
+  button, .btn, select, input { font:inherit; color:var(--ink); }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; padding:14px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:20px; margin:0; } header h1 span { color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+  .btn, nav button { border:1px solid var(--line); background:var(--panel); padding:7px 12px; border-radius:6px; cursor:pointer; text-decoration:none; }
+  .btn.primary, nav button.active { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .btn.danger { color:var(--danger); } .btn:disabled { opacity:.45; cursor:not-allowed; }
+  select, input { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:7px 9px; }
+  main { padding:16px; max-width:1100px; margin:0 auto; }
+  section.view { display:none; } section.view.active { display:block; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-size:13px; font-weight:600; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; border:1px solid var(--line); color:var(--muted); }
+  .badge.active { color:var(--ok); border-color:var(--ok); } .badge.suspended { color:var(--warn); border-color:var(--warn); } .badge.retired { color:var(--danger); border-color:var(--danger); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .kpi { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .kpi b { display:block; font-size:22px; } .kpi span { color:var(--muted); font-size:13px; }
+  .help { color:var(--muted); font-size:13px; }
+  .msg { padding:10px 12px; border-radius:6px; border:1px solid var(--line); margin-bottom:12px; }
+  .msg.err { color:var(--danger); border-color:var(--danger); } .msg.ok { color:var(--ok); border-color:var(--ok); }
+  .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; }
+  .form-grid label { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; }
+  .form-grid select, .form-grid input { width:100%; }
+  dialog { border:1px solid var(--line); border-radius:10px; background:var(--panel); color:var(--ink); width:min(600px,94vw); padding:0; }
+  dialog::backdrop { background:rgba(0,0,0,.4); }
+  @media (max-width:640px) { th,td { font-size:13px; } }
+</style>
+<link rel="stylesheet" href="/theme.css?v=1">
+</head>
+<body>
+<header>
+  <h1>Open-GenCut <span>AMP</span> <span class="alpha-tag">Alfa</span> - <span data-i18n="title">Ciclo di vita</span></h1>
+  <span class="alpha-badge" data-i18n="alpha" style="font-size:12px;color:var(--danger);border:1px solid var(--danger);border-radius:999px;padding:1px 8px;white-space:nowrap">Versione alfa - non usare in produzione</span>
+  <div class="row" style="margin:0">
+    <a class="btn" href="/integrations.html" data-i18n="linkInt">Integrazioni</a>
+    <select id="lang" aria-label="Language" style="width:auto">
+      <option value="it">Italiano</option><option value="en">English</option>
+      <option value="fr">Français</option><option value="de">Deutsch</option>
+    </select>
+  </div>
+</header>
+<div id="gc-nav"></div>
+<main>
+  <div id="notice"></div>
+  <div class="row">
+    <select id="agent" aria-label="agent" style="min-width:260px"></select>
+    <span id="status-badge"></span>
+  </div>
+  <nav class="row">
+    <button data-view="overview" class="active" data-i18n="nav.overview">Panoramica</button>
+    <button data-view="versions" data-i18n="nav.versions">Versioni</button>
+    <button data-view="deploy" data-i18n="nav.deploy">Deploy e promozioni</button>
+    <button data-view="eval" data-i18n="nav.eval">Valutazioni</button>
+    <button data-view="identity" data-i18n="nav.identity">Identità</button>
+    <button data-view="perf" data-i18n="nav.perf">Monitoraggio</button>
+    <button data-view="help" data-i18n="nav.help">Aiuto</button>
+  </nav>
+
+  <!-- PANORAMICA -->
+  <section class="view active" id="v-overview">
+    <div class="card">
+      <div class="row">
+        <button class="btn" id="btn-suspend" data-i18n="btn.suspend">Sospendi</button>
+        <button class="btn" id="btn-reactivate" data-i18n="btn.reactivate">Riattiva</button>
+        <button class="btn danger" id="btn-retire" data-i18n="btn.retire">Dismetti</button>
+      </div>
+      <div class="grid" id="envs"></div>
+      <p class="help" data-i18n="help.retire">La dismissione è definitiva: l'agente non riceve più accessi e non può essere riattivato.</p>
+    </div>
+  </section>
+
+  <!-- VERSIONI -->
+  <section class="view" id="v-versions">
+    <div class="row"><button class="btn primary" id="btn-version" data-i18n="btn.newVersion">Nuova versione</button></div>
+    <div class="card wrap"><table><thead><tr><th data-i18n="c.version">Versione</th></tr></thead><tbody id="versions-body"></tbody></table></div>
+  </section>
+
+  <!-- DEPLOY -->
+  <section class="view" id="v-deploy">
+    <div class="card">
+      <div class="form-grid">
+        <div><label for="dep-env" data-i18n="c.env">Ambiente</label><select id="dep-env"></select></div>
+        <div><label for="dep-ver" data-i18n="c.version">Versione</label><select id="dep-ver"></select></div>
+        <div><label for="dep-note" data-i18n="c.note">Nota</label><input id="dep-note"></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary" id="btn-deploy" data-i18n="btn.deploy">Deploy</button>
+        <select id="prom-to"></select>
+        <button class="btn" id="btn-promote" data-i18n="btn.promote">Promuovi</button>
+      </div>
+    </div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.when">Quando</th><th data-i18n="c.action">Azione</th><th data-i18n="c.env">Ambiente</th><th data-i18n="c.version">Versione</th><th data-i18n="c.actor">Utente</th><th data-i18n="c.note">Nota</th>
+    </tr></thead><tbody id="dep-body"></tbody></table></div>
+  </section>
+
+  <!-- IDENTITA -->
+  <section class="view" id="v-identity">
+    <div class="card">
+      <div id="id-box"></div>
+      <div class="row" style="margin-top:12px"><button class="btn danger" id="btn-revoke" data-i18n="btn.revoke">Revoca identità</button></div>
+    </div>
+  </section>
+
+  <!-- VALUTAZIONI -->
+  <section class="view" id="v-eval">
+    <div class="card">
+      <div class="form-grid">
+        <div><label for="ev-ver" data-i18n="c.version">Versione</label><select id="ev-ver"></select></div>
+        <div><label for="ev-res" data-i18n="c.result">Esito</label><select id="ev-res"></select></div>
+        <div><label for="ev-note" data-i18n="c.note">Nota</label><input id="ev-note"></div>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="btn-eval" data-i18n="btn.evaluate">Registra valutazione</button></div>
+      <p class="help" data-i18n="help.gate">La promozione a staging e produzione richiede che l'ultima valutazione dell'agente sia superata per la versione da promuovere.</p>
+    </div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.when">Quando</th><th data-i18n="c.version">Versione</th><th data-i18n="c.result">Esito</th><th data-i18n="c.actor">Utente</th><th data-i18n="c.note">Nota</th>
+    </tr></thead><tbody id="ev-body"></tbody></table></div>
+  </section>
+
+  <!-- MONITORAGGIO -->
+  <section class="view" id="v-perf">
+    <div class="row">
+      <select id="perf-env"></select>
+      <button class="btn" id="btn-perf" data-i18n="btn.refresh">Aggiorna</button>
+    </div>
+    <div class="grid" id="perf-kpis"></div>
+  </section>
+
+  <!-- AIUTO -->
+  <section class="view" id="v-help">
+    <div class="card">
+      <h2 data-i18n="help.title">Guida in linea</h2>
+      <p data-i18n="help.body">Gestisci il percorso di ogni agente: registra una versione, distribuiscila in sviluppo, promuovila in staging e poi in produzione. Puoi sospendere un agente in qualsiasi momento e riattivarlo. La dismissione è definitiva. Ogni azione è registrata nel tracciamento.</p>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <div style="padding:18px">
+    <h2 id="dlg-title"></h2>
+    <span class="alpha-tag">Alfa</span>
+    <div id="dlg-body"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="dlg-ok"></button>
+      <button class="btn" id="dlg-cancel"></button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+  var I = {
+    it: { title:"Ciclo di vita",alpha:"Versione alfa – non usare in produzione", back:"Registro agenti", linkInt:"Integrazioni",
+      nav:{eval:"Valutazioni",identity:"Identità",overview:"Panoramica",versions:"Versioni",deploy:"Deploy e promozioni",perf:"Monitoraggio",help:"Aiuto"},
+      btn:{evaluate:"Registra valutazione",revoke:"Revoca identità",suspend:"Sospendi",reactivate:"Riattiva",retire:"Dismetti",newVersion:"Nuova versione",deploy:"Deploy",promote:"Promuovi",refresh:"Aggiorna",save:"Salva",cancel:"Annulla",confirm:"Conferma"},
+      c:{identity:"Identità",identityId:"Identificativo",revoked:"Revocata",active:"Attiva",revokeText:"La revoca è definitiva: l'agente non può più accedere a nessuna risorsa.",result:"Esito",passed:"superata",failed:"non superata",version:"Versione",env:"Ambiente",note:"Nota",when:"Quando",action:"Azione",actor:"Utente",status:"Stato",calls:"Chiamate",errors:"Errori",errRate:"Tasso errori",latency:"Latenza media (ms)",maxLatency:"Latenza massima (ms)",tokens:"Token",cost:"Costo",none:"nessuna"},
+      env:{development:"Sviluppo",staging:"Staging",production:"Produzione"},
+      st:{registered:"Registrato",active:"Attivo",suspended:"Sospeso",retired:"Dismesso"},
+      act:{deploy:"Deploy",promote:"Promozione"},
+      dlg:{newVersion:"Nuova versione",label:"Etichetta versione *",retire:"Dismettere l'agente?",retireText:"La dismissione è definitiva e non si può annullare.",promote:"Promuovere la versione?"},
+      ok:"Fatto.", err:"Errore", empty:"Nessun elemento.", need:"Seleziona un agente.", needVer:"Seleziona una versione.",
+      help:{gate:"La promozione a staging e produzione richiede che l'ultima valutazione sia superata per la versione da promuovere.",title:"Guida in linea",body:"Gestisci il percorso di ogni agente: registra una versione, distribuiscila in sviluppo, promuovila in staging e poi in produzione. Puoi sospendere un agente in qualsiasi momento e riattivarlo. La dismissione è definitiva. Ogni azione è registrata nel tracciamento.",retire:"La dismissione è definitiva: l'agente non riceve più accessi e non può essere riattivato."} },
+    en: { title:"Lifecycle",alpha:"Alpha version – do not use in production", back:"Agent registry", linkInt:"Integrations",
+      nav:{eval:"Evaluations",identity:"Identity",overview:"Overview",versions:"Versions",deploy:"Deploy and promotions",perf:"Monitoring",help:"Help"},
+      btn:{evaluate:"Record evaluation",revoke:"Revoke identity",suspend:"Suspend",reactivate:"Reactivate",retire:"Retire",newVersion:"New version",deploy:"Deploy",promote:"Promote",refresh:"Refresh",save:"Save",cancel:"Cancel",confirm:"Confirm"},
+      c:{identity:"Identity",identityId:"Identifier",revoked:"Revoked",active:"Active",revokeText:"Revocation is permanent: the agent can no longer access any resource.",result:"Result",passed:"passed",failed:"failed",version:"Version",env:"Environment",note:"Note",when:"When",action:"Action",actor:"User",status:"Status",calls:"Calls",errors:"Errors",errRate:"Error rate",latency:"Average latency (ms)",maxLatency:"Max latency (ms)",tokens:"Tokens",cost:"Cost",none:"none"},
+      env:{development:"Development",staging:"Staging",production:"Production"},
+      st:{registered:"Registered",active:"Active",suspended:"Suspended",retired:"Retired"},
+      act:{deploy:"Deploy",promote:"Promotion"},
+      dlg:{newVersion:"New version",label:"Version label *",retire:"Retire the agent?",retireText:"Retirement is permanent and cannot be undone.",promote:"Promote the version?"},
+      ok:"Done.", err:"Error", empty:"No items.", need:"Select an agent.", needVer:"Select a version.",
+      help:{gate:"Promotion to staging and production requires the latest evaluation of the version to be passed.",title:"Online help",body:"Manage the path of each agent: register a version, deploy it to development, promote it to staging and then to production. You can suspend an agent at any time and reactivate it. Retirement is permanent. Every action is recorded in the audit log.",retire:"Retirement is permanent: the agent no longer gets access and cannot be reactivated."} },
+    fr: { title:"Cycle de vie",alpha:"Version alpha – ne pas utiliser en production", back:"Registre des agents", linkInt:"Intégrations",
+      nav:{eval:"Évaluations",identity:"Identité",overview:"Vue d'ensemble",versions:"Versions",deploy:"Déploiement et promotions",perf:"Supervision",help:"Aide"},
+      btn:{evaluate:"Enregistrer l'évaluation",revoke:"Révoquer l'identité",suspend:"Suspendre",reactivate:"Réactiver",retire:"Retirer",newVersion:"Nouvelle version",deploy:"Déployer",promote:"Promouvoir",refresh:"Actualiser",save:"Enregistrer",cancel:"Annuler",confirm:"Confirmer"},
+      c:{identity:"Identité",identityId:"Identifiant",revoked:"Révoquée",active:"Active",revokeText:"La révocation est définitive : l'agent ne peut plus accéder à aucune ressource.",result:"Résultat",passed:"réussie",failed:"échouée",version:"Version",env:"Environnement",note:"Note",when:"Date",action:"Action",actor:"Utilisateur",status:"Statut",calls:"Appels",errors:"Erreurs",errRate:"Taux d'erreur",latency:"Latence moyenne (ms)",maxLatency:"Latence max (ms)",tokens:"Jetons",cost:"Coût",none:"aucune"},
+      env:{development:"Développement",staging:"Préproduction",production:"Production"},
+      st:{registered:"Enregistré",active:"Actif",suspended:"Suspendu",retired:"Retiré"},
+      act:{deploy:"Déploiement",promote:"Promotion"},
+      dlg:{newVersion:"Nouvelle version",label:"Libellé de version *",retire:"Retirer l'agent ?",retireText:"Le retrait est définitif et irréversible.",promote:"Promouvoir la version ?"},
+      ok:"Fait.", err:"Erreur", empty:"Aucun élément.", need:"Sélectionnez un agent.", needVer:"Sélectionnez une version.",
+      help:{gate:"La promotion vers la préproduction et la production exige que la dernière évaluation de la version soit réussie.",title:"Aide en ligne",body:"Gérez le parcours de chaque agent : enregistrez une version, déployez-la en développement, promouvez-la en préproduction puis en production. Vous pouvez suspendre un agent à tout moment et le réactiver. Le retrait est définitif. Chaque action est enregistrée dans la traçabilité.",retire:"Le retrait est définitif : l'agent n'a plus d'accès et ne peut pas être réactivé."} },
+    de: { title:"Lebenszyklus",alpha:"Alpha-Version – nicht in der Produktion verwenden", back:"Agentenregister", linkInt:"Integrationen",
+      nav:{eval:"Bewertungen",identity:"Identität",overview:"Übersicht",versions:"Versionen",deploy:"Deployment und Beförderung",perf:"Überwachung",help:"Hilfe"},
+      btn:{evaluate:"Bewertung erfassen",revoke:"Identität widerrufen",suspend:"Sperren",reactivate:"Reaktivieren",retire:"Außer Betrieb nehmen",newVersion:"Neue Version",deploy:"Deployen",promote:"Befördern",refresh:"Aktualisieren",save:"Speichern",cancel:"Abbrechen",confirm:"Bestätigen"},
+      c:{identity:"Identität",identityId:"Kennung",revoked:"Widerrufen",active:"Aktiv",revokeText:"Der Widerruf ist endgültig: Der Agent kann auf keine Ressource mehr zugreifen.",result:"Ergebnis",passed:"bestanden",failed:"nicht bestanden",version:"Version",env:"Umgebung",note:"Notiz",when:"Zeitpunkt",action:"Aktion",actor:"Benutzer",status:"Status",calls:"Aufrufe",errors:"Fehler",errRate:"Fehlerquote",latency:"Durchschnittliche Latenz (ms)",maxLatency:"Maximale Latenz (ms)",tokens:"Token",cost:"Kosten",none:"keine"},
+      env:{development:"Entwicklung",staging:"Staging",production:"Produktion"},
+      st:{registered:"Registriert",active:"Aktiv",suspended:"Gesperrt",retired:"Außer Betrieb"},
+      act:{deploy:"Deployment",promote:"Beförderung"},
+      dlg:{newVersion:"Neue Version",label:"Versionsbezeichnung *",retire:"Agent außer Betrieb nehmen?",retireText:"Die Außerbetriebnahme ist endgültig und kann nicht rückgängig gemacht werden.",promote:"Version befördern?"},
+      ok:"Erledigt.", err:"Fehler", empty:"Keine Einträge.", need:"Wählen Sie einen Agenten.", needVer:"Wählen Sie eine Version.",
+      help:{gate:"Die Beförderung in Staging und Produktion setzt voraus, dass die letzte Bewertung der Version bestanden ist.",title:"Online-Hilfe",body:"Verwalten Sie den Lebenszyklus jedes Agenten: Registrieren Sie eine Version, deployen Sie sie in der Entwicklung, befördern Sie sie in Staging und dann in die Produktion. Ein Agent kann jederzeit gesperrt und reaktiviert werden. Die Außerbetriebnahme ist endgültig. Jede Aktion wird im Protokoll erfasst.",retire:"Die Außerbetriebnahme ist endgültig: Der Agent erhält keinen Zugriff mehr und kann nicht reaktiviert werden."} }
+  };
+  // Messaggi d'errore del server tradotti per lingua (fallback: prefisso Errore + testo originale).
+  var SRV = {"it": [["interaction_language è obbligatoria", "Lingua dell'interazione obbligatoria per gli agenti che interagiscono con persone"], ["interaction_language deve essere", "La lingua deve essere un tag, es. it o en-GB"], ["valore già presente", "Valore già presente (chiave duplicata)"], ["coppia agente-risorsa già presente", "Coppia agente-risorsa già presente nei limiti"], ["ultima valutazione non superata", "Ultima valutazione non superata: promozione bloccata"], ["ultima valutazione su una versione diversa", "L'ultima valutazione riguarda un'altra versione"], ["agente sospeso", "Agente sospeso: operazione non consentita"], ["agente dismesso", "Agente dismesso: operazione non consentita"], ["versione non registrata", "Versione non registrata per questo agente"], ["versione già registrata", "Versione già registrata per questo agente"], ["transizione non consentita", "Transizione di stato non consentita"], ["non è in allowlist", "La coppia non è in allowlist"], ["non è marcata come sensibile", "La coppia non richiede approvazione"], ["name è obbligatorio", "Il nome è obbligatorio"], ["key è obbligatoria", "La chiave è obbligatoria"], ["version_label è obbligatoria", "L'etichetta di versione è obbligatoria"], ["currency deve essere", "La valuta deve essere EUR o USD"], ["non trovato", "Elemento non trovato"], ["errore interno", "Errore interno del server"]], "en": [["interaction_language è obbligatoria", "Interaction language is required for agents that interact with people"], ["interaction_language deve essere", "The language must be a tag, e.g. it or en-GB"], ["valore già presente", "Value already exists (duplicate key)"], ["coppia agente-risorsa già presente", "The agent-resource pair already has a limit"], ["ultima valutazione non superata", "Latest evaluation not passed: promotion blocked"], ["ultima valutazione su una versione diversa", "The latest evaluation is for another version"], ["agente sospeso", "Agent suspended: operation not allowed"], ["agente dismesso", "Agent retired: operation not allowed"], ["versione non registrata", "Version not registered for this agent"], ["versione già registrata", "Version already registered for this agent"], ["transizione non consentita", "State transition not allowed"], ["non è in allowlist", "The pair is not in the allowlist"], ["non è marcata come sensibile", "The pair does not require approval"], ["name è obbligatorio", "Name is required"], ["key è obbligatoria", "Key is required"], ["version_label è obbligatoria", "Version label is required"], ["currency deve essere", "Currency must be EUR or USD"], ["non trovato", "Item not found"], ["errore interno", "Internal server error"]], "fr": [["interaction_language è obbligatoria", "La langue de l'interaction est obligatoire pour les agents qui interagissent avec des personnes"], ["interaction_language deve essere", "La langue doit être un code, ex. it ou en-GB"], ["valore già presente", "Valeur déjà présente (clé en double)"], ["coppia agente-risorsa già presente", "La paire agent-ressource a déjà une limite"], ["ultima valutazione non superata", "Dernière évaluation non réussie : promotion bloquée"], ["ultima valutazione su una versione diversa", "La dernière évaluation concerne une autre version"], ["agente sospeso", "Agent suspendu : opération non autorisée"], ["agente dismesso", "Agent retiré : opération non autorisée"], ["versione non registrata", "Version non enregistrée pour cet agent"], ["versione già registrata", "Version déjà enregistrée pour cet agent"], ["transizione non consentita", "Transition d'état non autorisée"], ["non è in allowlist", "La paire n'est pas dans la liste blanche"], ["non è marcata come sensibile", "La paire ne nécessite pas d'approbation"], ["name è obbligatorio", "Le nom est obligatoire"], ["key è obbligatoria", "La clé est obligatoire"], ["version_label è obbligatoria", "Le libellé de version est obligatoire"], ["currency deve essere", "La devise doit être EUR ou USD"], ["non trovato", "Élément introuvable"], ["errore interno", "Erreur interne du serveur"]], "de": [["interaction_language è obbligatoria", "Interaktionssprache ist erforderlich für Agenten, die mit Personen interagieren"], ["interaction_language deve essere", "Die Sprache muss ein Code sein, z. B. it oder en-GB"], ["valore già presente", "Wert bereits vorhanden (doppelter Schlüssel)"], ["coppia agente-risorsa già presente", "Das Agent-Ressourcen-Paar hat bereits ein Limit"], ["ultima valutazione non superata", "Letzte Bewertung nicht bestanden: Beförderung blockiert"], ["ultima valutazione su una versione diversa", "Die letzte Bewertung betrifft eine andere Version"], ["agente sospeso", "Agent gesperrt: Vorgang nicht zulässig"], ["agente dismesso", "Agent außer Betrieb: Vorgang nicht zulässig"], ["versione non registrata", "Version für diesen Agenten nicht registriert"], ["versione già registrata", "Version für diesen Agenten bereits registriert"], ["transizione non consentita", "Zustandsübergang nicht zulässig"], ["non è in allowlist", "Das Paar ist nicht in der Freigabeliste"], ["non è marcata come sensibile", "Das Paar erfordert keine Freigabe"], ["name è obbligatorio", "Name ist erforderlich"], ["key è obbligatoria", "Schlüssel ist erforderlich"], ["version_label è obbligatoria", "Versionsbezeichnung ist erforderlich"], ["currency deve essere", "Die Währung muss EUR oder USD sein"], ["non trovato", "Element nicht gefunden"], ["errore interno", "Interner Serverfehler"]]};
+  function srvMsg(m) {
+    var rows = SRV[lang] || [];
+    for (var i = 0; i < rows.length; i++) { if (String(m).indexOf(rows[i][0]) >= 0) return rows[i][1]; }
+    return (I[lang] && I[lang].err ? I[lang].err : "Error") + ": " + m;
+  }
+  var lang = "it", agents = [], current = null, dlgOk = null;
+  var ENVS = ["development", "staging", "production"];
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return document.querySelectorAll(s); };
+  function t(k) { var p = k.split("."), d = I[lang], i = 0; for (; i < p.length; i++) { d = d && d[p[i]]; } return d !== undefined ? d : k; }
+  function esc(v) { return String(v === null || v === undefined ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function notice(m, k) { $("#notice").innerHTML = '<div class="msg ' + (k || "ok") + '">' + esc(m) + "</div>"; if (k !== "err") setTimeout(function () { $("#notice").innerHTML = ""; }, 3500); }
+  function api(method, path, body) {
+    var o = { method: method, headers: { "Accept": "application/json" } };
+    if (body !== undefined) { o.headers["Content-Type"] = "application/json"; o.body = JSON.stringify(body); }
+    return fetch("/api" + path, o).then(function (r) {
+      return r.text().then(function (txt) {
+        var d = null; try { d = txt ? JSON.parse(txt) : null; } catch (e) { d = null; }
+        if (!r.ok) throw new Error(srvMsg((d && d.message) || (r.status + " " + r.statusText)));
+        return d;
+      });
+    });
+  }
+  function fail(e) { notice(e.message, "err"); }
+  function fmtEnv(e) { return t("env." + e); }
+  function apply() {
+    document.documentElement.lang = lang;
+    $$("[data-i18n]").forEach(function (el) { el.textContent = t(el.getAttribute("data-i18n")); });
+    $("#btn-retire").disabled = false;
+    refreshSelects();
+    if (current) loadDetail();
+  }
+  function refreshSelects() {
+    var prev = $("#agent").value;
+    $("#agent").innerHTML = agents.length ? agents.map(function (a) { return '<option value="' + a.id + '">' + esc(a.name) + "</option>"; }).join("") : '<option value="">' + esc(t("need")) + "</option>";
+    if (prev) $("#agent").value = prev;
+    $("#dep-env").innerHTML = ENVS.map(function (e) { return '<option value="' + e + '">' + esc(fmtEnv(e)) + "</option>"; }).join("");
+    $("#perf-env").innerHTML = '<option value="">—</option>' + ENVS.map(function (e) { return '<option value="' + e + '">' + esc(fmtEnv(e)) + "</option>"; }).join("");
+    $("#ev-res").innerHTML = '<option value="passed">' + esc(t("c.passed")) + '</option><option value="failed">' + esc(t("c.failed")) + "</option>";
+    $("#prom-to").innerHTML = ENVS.slice(1).map(function (e) { return '<option value="' + e + '">' + esc(fmtEnv(e)) + "</option>"; }).join("");
+  }
+  function loadAgents() {
+    return api("GET", "/agents").then(function (a) { agents = a || []; refreshSelects(); if (agents.length) { current = agents[0].id; } loadDetail(); }).catch(fail);
+  }
+  function loadDetail() {
+    var id = $("#agent").value || current;
+    if (!id) return;
+    current = id;
+    return api("GET", "/lifecycle/agents/" + id).then(function (d) {
+      $("#status-badge").innerHTML = '<span class="badge ' + esc(d.status) + '">' + esc(t("st." + d.status)) + "</span>";
+      var envs = d.environments || {};
+      $("#envs").innerHTML = ENVS.map(function (e) {
+        var v = envs[e];
+        return '<div class="kpi"><span>' + esc(fmtEnv(e)) + '</span><b>' + esc(v ? v.version_label : "—") + "</b></div>";
+      }).join("");
+      var canSuspend = d.status === "registered" || d.status === "active";
+      var canReact = d.status === "suspended";
+      var canRetire = d.status !== "retired";
+      $("#btn-suspend").disabled = !canSuspend;
+      $("#btn-reactivate").disabled = !canReact;
+      $("#btn-retire").disabled = !canRetire;
+      $("#btn-deploy").disabled = d.status === "retired" || d.status === "suspended";
+      $("#btn-promote").disabled = d.status === "retired" || d.status === "suspended";
+      $("#btn-version").disabled = d.status === "retired";
+      var vers = d.versions || [];
+      $("#versions-body").innerHTML = vers.length ? vers.map(function (v) { return "<tr><td>" + esc(v) + "</td></tr>"; }).join("") : '<tr><td>' + esc(t("empty")) + "</td></tr>";
+      $("#dep-ver").innerHTML = vers.map(function (v) { return '<option value="' + esc(v) + '">' + esc(v) + "</option>"; }).join("");
+      $("#ev-ver").innerHTML = $("#dep-ver").innerHTML;
+      return api("GET", "/lifecycle/agents/" + id + "/deployments?limit=50");
+    }).then(function (rows) {
+      rows = rows || [];
+      $("#dep-body").innerHTML = rows.length ? rows.map(function (r) {
+        return "<tr><td>" + esc(r.at) + "</td><td>" + esc(t("act." + r.action)) + "</td><td>" + esc(fmtEnv(r.environment)) + "</td><td>" + esc(r.version_label) + "</td><td>" + esc(r.actor) + "</td><td>" + esc(r.note || "") + "</td></tr>";
+      }).join("") : '<tr><td colspan="6">' + esc(t("empty")) + "</td></tr>";
+    }).catch(fail);
+  }
+  function act(path, body, okFn) {
+    var id = current; if (!id) return notice(t("need"), "err");
+    return api("POST", "/lifecycle/agents/" + id + path, body || {}).then(function (r) { notice(t("ok")); if (okFn) okFn(r); loadDetail(); }).catch(fail);
+  }
+  function openDialog(title, bodyHtml, okLabel, onOk) {
+    $("#dlg-title").textContent = title;
+    $("#dlg-body").innerHTML = bodyHtml + "<div id='dlg-err'></div>";
+    $("#dlg-ok").textContent = okLabel;
+    $("#dlg-cancel").textContent = t("btn.cancel");
+    dlgOk = onOk;
+    $("#dlg").showModal();
+  }
+  function dlgErr(m) { $("#dlg-err").innerHTML = '<div class="msg err">' + esc(m) + "</div>"; }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.hasAttribute("data-view")) return view(b.getAttribute("data-view"));
+    if (b.id === "btn-suspend") return act("/suspend", {});
+    if (b.id === "btn-reactivate") return act("/reactivate", {});
+    if (b.id === "btn-retire") return openDialog(t("dlg.retire"), "<p>" + esc(t("dlg.retireText")) + "</p>", t("btn.retire"), function () {
+      api("POST", "/lifecycle/agents/" + current + "/retire", {}).then(function () { $("#dlg").close(); notice(t("ok")); loadDetail(); }).catch(function (x) { dlgErr(x.message); });
+    });
+    if (b.id === "btn-version") return openDialog(t("dlg.newVersion"), '<div><label for="df-label">' + esc(t("dlg.label")) + '</label><input id="df-label" style="width:100%"></div>', t("btn.save"), function () {
+      var v = ($("#df-label").value || "").trim();
+      if (!v) return dlgErr(t("err"));
+      api("POST", "/lifecycle/agents/" + current + "/versions", { version_label: v }).then(function () { $("#dlg").close(); notice(t("ok")); loadDetail(); }).catch(function (x) { dlgErr(x.message); });
+    });
+    if (b.id === "btn-deploy") {
+      var ver = $("#dep-ver").value; if (!ver) return notice(t("needVer"), "err");
+      return act("/deploy", { environment: $("#dep-env").value, version_label: ver, note: $("#dep-note").value });
+    }
+    if (b.id === "btn-promote") {
+      var toEnv = $("#prom-to").value;
+      return openDialog(t("dlg.promote"), "<p>" + esc(fmtEnv(toEnv)) + "</p>", t("btn.confirm"), function () {
+        $("#dlg").close();
+        act("/promote", { to_environment: toEnv, note: $("#dep-note").value });
+      });
+    }
+    if (b.id === "btn-revoke") return openDialog(t("btn.revoke"), "<p>" + esc(t("c.revokeText")) + "</p>", t("btn.confirm"), function () {
+      api("POST", "/identity/agents/" + current + "/revoke", {}).then(function () { $("#dlg").close(); notice(t("ok")); loadIdentity(); }).catch(function (x) { dlgErr(x.message); });
+    });
+    if (b.id === "btn-eval") {
+      var evVer = $("#ev-ver").value; if (!evVer) return notice(t("needVer"), "err");
+      return api("POST", "/lifecycle/agents/" + current + "/evaluations", { version_label: evVer, result: $("#ev-res").value, note: $("#ev-note").value })
+        .then(function () { notice(t("ok")); loadEval(); }).catch(fail);
+    }
+    if (b.id === "btn-perf") return loadPerf();
+    if (b.id === "dlg-ok") return dlgOk && dlgOk();
+    if (b.id === "dlg-cancel") return $("#dlg").close();
+  });
+  function loadIdentity() {
+    if (!current) return;
+    api("GET", "/identity/agents/" + current).then(function (d) {
+      d = d || {};
+      $("#id-box").innerHTML = "<p><b>" + esc(t("c.identityId")) + ":</b> <code>" + esc(d.identity_id) + "</code></p>" +
+        "<p>" + (d.revoked ? '<b style="color:var(--danger)">' + esc(t("c.revoked")) + "</b>" : '<b style="color:var(--ok)">' + esc(t("c.active")) + "</b>") + "</p>";
+      $("#btn-revoke").disabled = !!d.revoked;
+    }).catch(fail);
+  }
+  function loadEval() {
+    if (!current) return;
+    return api("GET", "/lifecycle/agents/" + current + "/evaluations?limit=50").then(function (rows) {
+      rows = rows || [];
+      $("#ev-body").innerHTML = rows.length ? rows.map(function (r) {
+        return "<tr><td>" + esc(r.at) + "</td><td>" + esc(r.version_label) + "</td><td>" + esc(t("c." + r.result)) +
+          "</td><td>" + esc(r.evaluator || "") + "</td><td>" + esc(r.note || "") + "</td></tr>";
+      }).join("") : '<tr><td colspan="5">' + esc(t("empty")) + "</td></tr>";
+    }).catch(fail);
+  }
+  function loadPerf() {
+    if (!current) return;
+    var env = $("#perf-env").value;
+    api("GET", "/lifecycle/agents/" + current + "/performance" + (env ? "?environment=" + env : "")).then(function (p) {
+      $("#perf-kpis").innerHTML = [
+        [p.calls, t("c.calls")], [p.errors, t("c.errors")], [(p.error_rate * 100).toFixed(1) + " %", t("c.errRate")],
+        [Math.round(p.avg_latency_ms), t("c.latency")], [Math.round(p.max_latency_ms), t("c.maxLatency")],
+        [p.tokens, t("c.tokens")], [p.cost, t("c.cost")]
+      ].map(function (x) { return '<div class="kpi"><b>' + esc(x[0]) + "</b><span>" + esc(x[1]) + "</span></div>"; }).join("");
+    }).catch(fail);
+  }
+  function view(name) {
+    $$("nav button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-view") === name); });
+    $$("section.view").forEach(function (s) { s.classList.toggle("active", s.id === "v-" + name); });
+    if (name === "eval") loadEval();
+    if (name === "identity") loadIdentity();
+    if (name === "perf") loadPerf();
+    if (name === "overview" || name === "versions" || name === "deploy") loadDetail();
+  }
+  $("#agent").addEventListener("change", function () { current = $("#agent").value; loadDetail(); });
+  $("#lang").addEventListener("change", function (e) { lang = e.target.value; try { localStorage.setItem("gencut.lang", lang); } catch (x) {} $("#notice").innerHTML = ""; document.documentElement.lang = lang; document.title = t("title") + " - Open-GenCut"; $$("[data-i18n]").forEach(function (el) { el.textContent = t(el.getAttribute("data-i18n")); }); refreshSelects(); loadDetail(); });
+  try { var s = localStorage.getItem("gencut.lang"); if (s && I[s]) lang = s; } catch (x) {}
+  $("#lang").value = lang;
+  document.title = t("title") + " - Open-GenCut";
+  $$("[data-i18n]").forEach(function (el) { el.textContent = t(el.getAttribute("data-i18n")); });
+  $("#dlg-ok").textContent = t("btn.confirm");
+  $("#dlg-cancel").textContent = t("btn.cancel");
+  refreshSelects();
+  loadAgents();
+})();
+</script>
+<script src="/nav.js?v=7"></script>
+</body>
+</html>

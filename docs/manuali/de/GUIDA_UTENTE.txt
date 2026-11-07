@@ -1,0 +1,258 @@
+OPEN-GENCUT - BENUTZERHANDBUCH
+------------------------------
+
+Autore: Quirino Scaramastra
+
+Version: Entwurf v0.1, 2026-11-07. Zielgruppe: Personen, die die Plattform nutzen, um Agenten zu registrieren und zu steuern.
+Status: Entwurf; Übersetzungen in docs/manuali/en, fr, de.
+
+Die Seiten sind in vier Sprachen verfügbar: Italienisch, Englisch, Französisch und Deutsch. Die Sprache wählen Sie über die Auswahl in der oberen Leiste.
+
+Die drei Seiten sind:
+- Register: /index.html, mit den Bereichen Agenten, Konfigurationen, Kennzahlen, Protokoll und Hilfe.
+- Integrationen: /integrations.html, mit den Bereichen Genehmigungen, Ressourcen, Freigabeliste, Limits, Zugriff prüfen, Zugriffsprotokoll und Hilfe.
+- Lebenszyklus: /lifecycle.html, mit den Bereichen Bewertungen, Übersicht, Versionen, Deployment und Beförderung, Überwachung und Hilfe.
+
+Die Schaltflächennamen sind die der deutschen Oberfläche. Für die Automatisierung ist der entsprechende API-Aufruf in eckigen Klammern angegeben.
+
+1. Register (Punkt 1)
+---------------------
+
+Das Register enthält die Agenten und ihre Konfigurationen, global oder pro Agent.
+
+Agenten
+
+- Im Bereich Agenten öffnet die Schaltfläche Agent hinzufügen das Formular „Neuer Agent". Das Pflichtfeld ist der Name; die Herkunft wählen Sie zwischen Intern, Marketplace und Drittanbieter.
+- Einen Agenten ändern Sie mit der Schaltfläche Bearbeiten in seiner Zeile; zum Löschen Löschen, dann Löschen bestätigen. Das Löschen ist endgültig und wird im Protokoll festgehalten.
+- Status: Registriert, Aktiv, Gesperrt, Außer Betrieb. Der Status wird im Lebenszyklus geändert (Abschnitt 3), nicht hier.
+- Monatliche Kosten und Währung (EUR oder USD). Die Summe in den Kennzahlen ist in EUR; Beträge in USD werden getrennt angezeigt.
+- Transparenz: Das Feld „Interagiert mit Personen" gibt an, ob der Agent mit Personen interagiert. In diesem Fall füllen Sie „Interaktionssprache" aus (z. B. it, en-GB).
+- Mit Speichern sichern Sie, mit Abbrechen verwerfen Sie. Eine Änderung ersetzt alle Felder des Agenten: Senden Sie auch die Felder mit, die Sie nicht ändern.
+- Agenten lassen sich über die Suche nach Name oder Eigentümer und über die Menüs Alle Herkünfte und Alle Status filtern.
+
+(API: /api/agents)
+
+Konfigurationen
+
+- Im Bereich Konfigurationen öffnet die Schaltfläche Konfiguration hinzufügen das Formular „Neue Konfiguration".
+- Eine Konfiguration hat einen Schlüssel, der im gesamten Register eindeutig ist, einen Wert und einen Geltungsbereich: Global oder Agent. Bei Geltungsbereich Agent wählen Sie den Agenten.
+
+(API: /api/configurations)
+
+Kennzahlen und Protokoll
+
+- Der Bereich Kennzahlen zeigt die Anzahl der Agenten (insgesamt und aktiv), nach Herkunft und Status, sowie die monatlichen Gesamtkosten.
+- Der Bereich Protokoll zeigt jede Änderung mit Datum, Benutzer, Aktion, Objekt und Detail. Jede Zeile ist per Hash mit der vorherigen verknüpft: Die Prüfung der Kette finden Sie unter /api/audit/verify.
+
+2. Integrationen (Punkt 2)
+--------------------------
+
+Hier steuern Sie, welche Agenten welche externen Ressourcen nutzen dürfen: LLM-Modelle, APIs, MCP-Server und Datenquellen.
+
+Ressourcen
+
+Im Bereich Ressourcen registriert die Schaltfläche Hinzufügen eine Ressource mit Typ (LLM-Modell, API, MCP-Server, Datenquelle), Name und optionalem Endpunkt. Eine deaktivierte Ressource kann kein Agent nutzen. Sie bearbeiten sie mit Bearbeiten und löschen sie mit Löschen.
+
+Freigabeliste
+
+Im Bereich Freigabeliste erteilt die Schaltfläche Ressource freigeben einem Agenten die Erlaubnis, eine Ressource zu nutzen. Ohne diese Zeile wird der Zugriff verweigert (not_allowed).
+
+Eine Zeile kann als Freigabe erforderlich (sensibel) markiert werden. Dann braucht jeder Zugriff eine Genehmigung (Abschnitt 2.4).
+
+Limits
+
+Im Bereich Limits legt die Schaltfläche Neues Limit für ein Paar aus Agent und Ressource fest:
+- die maximale Anzahl Aufrufe pro Tag (in UTC), Feld „Max. Aufrufe/Tag";
+- die maximalen Kosten pro Monat, Feld „Max. Kosten/Monat", in der gewählten Währung.
+
+Leeres Feld = kein Limit. Ein Zugriff über dem Limit wird verweigert (daily_call_limit oder monthly_cost_limit).
+
+Zugriff prüfen
+
+Der Bereich Zugriff prüfen simuliert eine Zugriffsanfrage mit der Schaltfläche Prüfen und erfassen. Das Ergebnis ist Erlaubt oder Verweigert, mit Grund. Die Gründe in der Reihenfolge der Prüfung:
+1. resource_disabled: die Ressource ist deaktiviert.
+2. agent_retired: der Agent ist außer Betrieb.
+3. agent_not_active: der Agent ist nicht aktiv (gesperrt oder registriert).
+4. not_allowed: das Paar steht nicht in der Freigabeliste.
+5. approval_required: das Paar ist sensibel und eine Genehmigung fehlt.
+6. daily_call_limit und monthly_cost_limit: ein Limit ist überschritten.
+
+Ein verweigerter Zugriff verbraucht kein Budget. Ein erlaubter Zugriff erfasst die angegebenen Kosten.
+
+Der Bereich Zugriffsprotokoll zeigt alle Entscheidungen, erlaubte und verweigerte, mit ihrem Grund.
+
+Genehmigungen (Anforderung R1)
+
+Für sensible Paare gilt:
+- Wird ein Zugriff mit approval_required verweigert, öffnet das System selbst eine offene Anfrage und zeigt ihre Nummer an.
+- Im Bereich Genehmigungen wählen Sie Genehmigen oder Ablehnen. Eine bereits genehmigte oder abgelehnte Anfrage lässt sich nicht mehr ändern. Im selben Bereich können Sie mit Freigabe anfordern eine Anfrage erstellen und die Begründung eintragen.
+- Eine Genehmigung gilt für genau einen Zugriff: Danach wechselt der Status zu „Verwendet", und für den nächsten Zugriff ist eine neue Genehmigung nötig.
+
+(API: /api/integrations/allowlist, /api/integrations/limits, /api/integrations/check, /api/integrations/approvals)
+
+3. Lebenszyklus (Punkte 3 und 4)
+--------------------------------
+
+Hier verwalten Sie das Leben eines Agenten, von den Versionen bis zur Außerbetriebnahme.
+
+Zustände des Agenten
+
+- Registriert → Aktiv → Gesperrt (und wieder Aktiv): Die Schaltfläche Sperren sperrt, Reaktivieren aktiviert wieder; das ist jederzeit möglich.
+- Außer Betrieb: Die Schaltfläche Außer Betrieb nehmen verlangt eine Bestätigung („Agent außer Betrieb nehmen?"). Die Außerbetriebnahme ist endgültig. Danach erhält der Agent keine Zugriffe, Deployments oder Beförderungen mehr.
+
+Versionen
+
+Im Bereich Versionen registriert die Schaltfläche Neue Version eine Version des Agenten (Feld „Versionsbezeichnung"). Dieselbe Version lässt sich nicht zweimal registrieren.
+
+Umgebungen, Deployments und Beförderungen
+
+Es gibt drei Umgebungen: Entwicklung, Staging und Produktion. Jede Umgebung hat eine aktuelle Version.
+- Deployen (Bereich „Deployment und Beförderung"): bringt eine registrierte Version in eine Umgebung.
+- Befördern: kopiert die aktuelle Version der Entwicklung nach Staging, und die von Staging nach Produktion. Es wird eine Bestätigung verlangt („Version befördern?").
+- Jedes Deployment und jede Beförderung wird im Register festgehalten, mit Datum, Version, Ausgangsumgebung und Notiz.
+
+Ein gesperrter oder außer Betrieb genommener Agent erhält weder Deployments noch Beförderungen.
+
+Bewertungen (Anforderung R3)
+
+Im Bereich Bewertungen registriert die Schaltfläche Bewertung erfassen das Ergebnis für eine Version: „bestanden" oder „nicht bestanden".
+
+Bevor ein Agent nach Staging oder Produktion geht, ist eine bestandene Bewertung für die zu befördernde Version nötig. Die Regel gilt für die letzte erfasste Bewertung:
+- ist die letzte Bewertung „nicht bestanden", ist der Übergang gesperrt, auch wenn eine frühere bestanden war;
+- betrifft die letzte Bewertung eine andere Version, ist der Übergang gesperrt.
+
+Die Entwicklung braucht keine Bewertungen.
+
+Überwachung
+
+Der Bereich Überwachung zeigt für eine Umgebung und einen Zeitraum: Aufrufe, Fehler und Fehlerquote, mittlere und maximale Latenz, Token und Kosten. Die Aufrufe werden vom System erfasst, das den Agenten nutzt. Mit Aktualisieren laden Sie die Daten neu.
+
+(API: /api/lifecycle/agents/{id}, /versions, /deploy, /promote, /evaluations, /performance, /suspend, /reactivate, /retire)
+
+4. Häufige Fragen
+-----------------
+
+Warum wird ein Deployment mit „Agent gesperrt" abgelehnt?
+Ein gesperrter Agent erhält keine neuen Versionen. Aktivieren Sie ihn mit Reaktivieren und versuchen Sie es erneut.
+
+Warum ist die Beförderung nach Staging gesperrt?
+Für die zu befördernde Version fehlt eine bestandene Bewertung. Erfassen Sie mit Bewertung erfassen eine Bewertung mit dem Ergebnis „bestanden" und versuchen Sie es erneut.
+
+Ich habe einen Agenten versehentlich außer Betrieb genommen. Kann ich ihn reaktivieren?
+Nein. Die Außerbetriebnahme ist endgültig. Registrieren Sie einen neuen Agenten.
+
+Warum wird ein Zugriff mit „Freigabe erforderlich" verweigert, obwohl ich ihn schon genehmigt habe?
+Eine Genehmigung gilt für einen einzigen Zugriff. Nach der Nutzung wechselt die Anfrage zu „Verwendet": Es ist eine neue Genehmigung nötig.
+
+Die Gesamtkosten enthalten einen Agenten nicht.
+Agenten in USD werden ohne Wechselkurs nicht zu denen in EUR addiert. Sie werden getrennt angezeigt.
+
+Im Protokoll steht bei einigen Zeilen „legacy".
+Das sind Zeilen, die vor der Einführung der Hash-Kette geschrieben wurden. Sie lassen sich nicht prüfen, bleiben aber erhalten.
+
+5. Bekannte Einschränkungen
+---------------------------
+
+- Es gibt keine Anmeldung mit Benutzer und Passwort: Wer die Seite nutzt, gilt als berechtigt. Nur in einem kontrollierten Netz verwenden.
+- Die Kosten eines Aufrufs sind die vom Absender angegebenen.
+- Genehmigungen laufen nicht ab.
+
+6. Zusätzliche Seiten (Punkte 4 bis 8 und Identität)
+----------------------------------------------------
+
+Alle neuen Seiten sind mit Alpha-Version - nicht in der Produktion verwenden gekennzeichnet: Der Titel oben weist darauf hin. Sie haben dieselbe Sprachauswahl und denselben Link „Agentenregister".
+
+- Compliance: /compliance.html, mit den Bereichen Übersicht, Richtlinien, Agent, Datensicherheit, Kontrollen und Hilfe.
+- Guardrails: /guardrails.html, mit den Bereichen Regeln, Prüfung, Protokoll, Übersicht und Hilfe.
+- Bewertung: /evaluation.html, mit den Bereichen Traces, Übersicht, Regeln, Urteile und Hilfe.
+- Marktplatz: /marketplace.html, mit den Bereichen Angebote, Anfragen und Hilfe.
+- FinOps: /finops.html, mit den Bereichen Agent, Übersicht, Ergebnis erfassen und Hilfe.
+- Identität: der Reiter „Identität" auf der Seite Lebenszyklus.
+
+6.1 Compliance (Punkt 4)
+
+- KI-Gateways sind Ressourcen des Typs „KI-Gateway" (Wert ai_gateway), die im Menü des Ressourcentyps auf der Seite Integrationen registriert werden.
+- Datensicherheit: Für jede Ressource legen Sie die Klassifizierung fest (Öffentlich, Intern, Vertraulich, Eingeschränkt), ob die Daten im Ruhezustand und bei der Übertragung verschlüsselt sind, ob personenbezogene Daten erlaubt sind, sowie die Aufbewahrung in Tagen. Ohne Eintrag gelten die Standardwerte (Intern, keine Verschlüsselung, keine personenbezogenen Daten).
+- Richtlinien: Die Schaltfläche Hinzufügen (Dialog „Neue Richtlinie") legt eine Regel mit einem von vier Typen an: Transparenz erforderlich, Bewertung vor der Produktion, maximale Klassifizierung, Freigabe für personenbezogene Daten. Der Parameter steht im JSON-Format. Im Reiter Agent sehen Sie für jede aktive Richtlinie, ob der Agent sie erfüllt, und den Grund.
+- Kontrollen: Der Bereich Kontrollen zeigt die Bibliothek der Rahmenwerke (zum Beispiel DSGVO, AI Act, ISO 27001, ISO 42001) mit ihren Kontrollen. Die Schaltflächen Neues Framework und Neue Kontrolle fügen sie hinzu. Die Anfangsdaten müssen vom Compliance-Verantwortlichen geprüft werden.
+- Kontrollbewertung: Für jeden Agenten hat jede Kontrolle ein Ergebnis: Konform, Nicht konform, Nicht bewertet, Nicht anwendbar, mit einer Nachweisnotiz.
+- Übersicht: Sie zeigt für jedes Framework die Kontrollen, den Prozentsatz konformer Agenten und die fehlschlagenden Richtlinien.
+
+Dokumentierte Einschränkung: Die Kontrolltitel sind Zusammenfassungen, die zu prüfen sind; sie sind nicht der Gesetzestext.
+
+6.2 Guardrails (Punkt 5)
+
+- Regeln: Die Schaltfläche Hinzufügen legt eine Guardrail mit einem der Typen an: Maskierung personenbezogener Daten (pii_mask), Sperrung personenbezogener Daten (pii_block), Sperrung nach Stichwörtern, maximale Länge, Frequenzgrenze pro Minute, Prompt-Injection (prompt_injection). Geltungsbereich: Global, Agent oder Ressource.
+- Prüfung: Die Schaltfläche Prüfen wendet die aktiven Regeln auf einen Testtext an, als Eingabe oder Ausgabe, und zeigt das Ergebnis (Erlaubt, Maskiert, Blockiert) mit den Verstößen.
+- Protokoll: Jede Bewertung wird mit Ergebnis, Verstößen, Textlänge und SHA-256-Fingerabdruck erfasst. Das Protokoll enthält den Text nicht.
+- Übersicht: Zählungen nach Ergebnis und nach Typ der letzten 24 Stunden.
+
+Eine Sperrung hat Vorrang vor einer Maskierung. Bei dem Ergebnis Blockiert ist der zurückgegebene Text leer. Erkannt werden: E-Mail, Telefonnummer, italienische Steuernummer (Codice fiscale), IBAN (mit der Prüfung mod 97), Kartennummer (mit der Luhn-Prüfung).
+
+Dokumentierte Einschränkung: Die Erkennung nutzt Regeln und reguläre Ausdrücke, keine Modelle der künstlichen Intelligenz. Sie kann in beide Richtungen irren: Betrachten Sie sie als ersten Filter.
+
+6.3 Bewertung (Punkt 6)
+
+- Traces: Die Schaltfläche Trace erfassen erfasst einen Ablauf: Trace-Kennung, Ergebnis (Erfolg, Fehler, teilweise), erreichtes Ziel, Kosten und Schritte. Jeder Schritt hat einen Typ (llm, tool, reasoning, memory), einen Namen, Token, Latenz und ein Ergebnis. Der Text der Schritte wird nie gespeichert.
+- Regeln: Die Schaltfläche Neue Regel legt eine Regel pro Typ an, und nur eine pro Typ: maximale Token pro Trace, maximale Latenz, maximale Fehlerquote, maximale Abweichung, maximales Alter des Speichers in Tagen. Eine Regel erzeugt Verstöße, wenn ein Trace sie überschreitet.
+- Übersicht: Erfolgsquote, Zielquote, mittlere Latenz, Fehlerquote, Anzahl der Verstöße, mittlere Bewertung, Abweichungshinweis und veraltete Speicherschritte.
+- Urteile: Die Schaltfläche Urteil erfassen erfasst eine Bewertung von 1 bis 5 mit dem Namen des Prüfers (Standard „manual"). Die Urteile stammen von einem externen Prüfer, einer Person oder einem Werkzeug: Die Plattform erzeugt sie nicht.
+
+Dokumentierte Einschränkungen: kein automatisches Urteil durch ein Modell; keine Aufnahme im OTLP-Format. Die Abweichung vergleicht die letzten 10 Traces mit den 10 davor.
+
+6.4 Marktplatz (Punkt 7)
+
+- Angebote: Die Schaltfläche Hinzufügen veröffentlicht einen Agenten eines Drittanbieters: Anbieter, Name, Version, Framework, Preismodell (kostenlos, Abonnement, pro Nutzung), Preis, Währung, Zertifizierung, Sicherheitsprüfung (Ausstehend, Genehmigt, Abgelehnt) und Status (Veröffentlicht, Verborgen). Bearbeiten mit Bearbeiten, löschen mit Löschen.
+- Anfragen: Die Schaltfläche Anfordern beantragt die Übernahme eines Angebots. Zulässig ist das nur, wenn das Angebot veröffentlicht und die Prüfung genehmigt ist.
+- Entscheidung: Genehmigen oder Ablehnen für eine ausstehende Anfrage. Bereitstellen legt den Agenten im Register mit dem Ursprung Marktplatz, dem Status registriert sowie Anbieter, Version und Framework des Angebots an. Eine Anfrage wird nur einmal bereitgestellt.
+
+6.5 FinOps (Punkt 8)
+
+- Ergebnis erfassen: Die Schaltfläche Erfassen trägt ein Ergebnis (Erfolg, Fehler, teilweise) mit dem Wert in EUR und dem Zeitraum ein.
+- Agent: Mit einem Datumsbereich zeigt sie Nutzungskosten, Fixkosten, Gesamtkosten, Wert, ROI, Kosten pro Erfolg und die Zählung der Ergebnisse.
+- Übersicht: Summen nach Framework oder nach Herkunft für den Datumsbereich.
+
+Konventionen: ROI = (Wert - Kosten) / Kosten, leer, wenn die Kosten null sind. Kosten pro Erfolg = Gesamtkosten / Erfolge, leer ohne Erfolge. Beträge in USD werden nicht zu Beträgen in EUR addiert: Die Fixkosten eines Agenten in USD werden gesondert angezeigt.
+
+6.6 Identität pro Agent
+
+Im Reiter Identität der Seite Lebenszyklus sehen Sie die Kennung des Agenten (eine bei der Anlage vergebene UUID) und seinen Status. Die Schaltfläche Identität widerrufen verlangt eine Bestätigung: Der Widerruf ist endgültig, und der Agent kann auf keine Ressource mehr zugreifen. Nach dem Widerruf ist die Schaltfläche deaktiviert.
+
+Die Sperrung blockiert den Agenten sofort; die Reaktivierung muss ausdrücklich angefordert werden. Das sind zwei verschiedene Mechanismen: Den Widerruf einer Identität kann man nicht rückgängig machen.
+
+7. Zugang und Sicherheit
+------------------------
+
+- Login: Auf der Login-Seite Benutzername und Passwort eingeben. Nach fünf Fehlversuchen innerhalb von zehn Minuten ist der Login für diesen Benutzer eine Zeit lang gesperrt; die Meldung verrät nicht, ob der Name existiert.
+- Erster Login und Passwortwechsel: Ist das Passwort temporär, führt die Plattform zur Seite Konto und verlangt, es vor allem anderen zu ändern. Das neue Passwort muss mindestens 8 und höchstens 72 Zeichen lang sein und darf nicht dem Benutzernamen entsprechen.
+- Profil: Auf der Seite Konto lässt sich das Passwort ändern. Über den Benutzernamen unten in der Leiste gelangt man zur Seite Konto, von dort lässt sich die Sitzung beenden.
+- Rollen: Administrator (alles, einschließlich Benutzerverwaltung); Compliance-Verantwortlicher (erstellt, bearbeitet, genehmigt); Operator (erstellt und bearbeitet, genehmigt nicht); Auditor (nur Lesezugriff mit Audit-Spur und Zugriffsprotokoll); Betrachter (nur Lesezugriff auf Register und Metriken); Integrationssystem (nur die Aufrufe der Agenten, keine Seiten).
+- Benutzer (nur Administrator): Die Seite Benutzer legt Benutzer an, ändert die Rolle, löscht einen Benutzer (weder sich selbst noch den letzten aktiven Administrator) und erzeugt ein temporäres Passwort für das Zurücksetzen. Das temporäre Passwort wird nur einmal angezeigt: Es wird dem Benutzer übergeben, der es beim ersten Login ändert.
+- Grenzen: keine Wiederherstellung per E-Mail (das Zurücksetzen macht ein Administrator); HTTPS mit dem Laborzertifikat (siehe Betriebshandbuch).
+
+8. Chat mit den Modellen
+------------------------
+
+- Die Seite Chat spricht mit einem Modell von OpenAI oder Anthropic. Anbieter, Modell, Agent und Anbieter-Ressource wählen und den API-Schlüssel eingeben.
+- Der API-Schlüssel bleibt im Feld der Seite, im Speicher: Die Plattform speichert ihn nicht, protokolliert ihn nicht und zeigt ihn nie an. Beim Schließen der Seite muss er erneut eingegeben werden.
+- Jede Antwort zeigt die Entscheidung (erlaubt, verweigert, blockiert), die Token und die Latenz. Die Plattform speichert den Nachrichtentext nicht.
+- Blockiert ein Guardrail die Nachricht oder die Antwort, lautet die angezeigte Entscheidung „blockiert“.
+
+9. MCP-Server und Werkzeuge
+---------------------------
+
+- Auf der Seite Integrationen ist ein MCP-Server eine Ressource vom Typ MCP-Server mit ihrer Adresse. Die Werkzeuge des Servers werden von Hand registriert oder per Synchronisierung, die die Liste vom Server liest.
+- Die Berechtigung für ein Werkzeug wird einem Agenten in der Werkzeug-Allowlist erteilt. Ohne Berechtigung wird der Aufruf verweigert (tool_not_allowed).
+- Im Reiter Aufruf testen Agent, Ressource und Werkzeug wählen, die Argumente als JSON eingeben und Entscheidung und Ergebnis ansehen.
+
+10. Inaktive Agenten
+--------------------
+
+Im Register zeigt die Spalte Aktivität, ob der Agent aktiv, ohne Aktivität oder nie aktiv ist, mit dem Datum des letzten Ereignisses. Ein aktiver Agent ohne Aufrufe, Zugriffsentscheidungen oder Traces in den letzten 30 Tagen wird als inaktiv markiert.
+
+11. Navigation und Hilfe in der Anwendung
+-----------------------------------------
+
+- Die Leiste oben ist auf allen Seiten gleich: Man wechselt zwischen den Bereichen, ohne zum Register zurückzukehren.
+- Die Seite Hilfe erklärt die Bereiche; die Seite Info beschreibt das Projekt.
+- Die gewählte Sprache wird im Browser gespeichert. Einige Seiten (zum Beispiel Chat, Guardrails und Bewertung) haben die Sprachauswahl.

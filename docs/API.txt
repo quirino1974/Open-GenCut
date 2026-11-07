@@ -1,0 +1,500 @@
+CONTRATTO API - OPEN-GENCUT V0.1 (PUNTO 1, REGISTRO UNIFICATO)
+--------------------------------------------------------------
+
+Autore: Quirino Scaramastra
+
+Base: /api. Formato JSON UTF-8. Errori: {"error": "codice", "message": "testo"}.
+Implementazione: backend Go. Consumatore: interfaccia web in web/.
+
+Agenti
+------
+- GET    /api/agents?q=&origin=&status=&owner=   elenco filtrato
+- GET    /api/agents/{id}                        dettaglio
+- POST   /api/agents                             aggiunta
+- PUT    /api/agents/{id}                        modifica
+- DELETE /api/agents/{id}                        cancellazione
+
+Campi agente:
+id (int), name (string, obbligatorio), description, origin (internal|marketplace|third_party),
+vendor, version, owner, status (registered|active|suspended|retired), model, endpoint,
+cost_monthly (decimal), currency (EUR|USD), created_at, updated_at.
+
+Configurazioni
+--------------
+- GET    /api/configurations
+- POST   /api/configurations
+- PUT    /api/configurations/{id}
+- DELETE /api/configurations/{id}
+
+Campi: id, key (obbligatorio, unico), value, scope (global|agent), agent_id (nullable), description.
+
+Metriche e tracciamento
+-----------------------
+- GET /api/metrics/summary     -> {agents_total, by_origin{}, by_status{}, cost_monthly_total, currency}
+- GET /api/metrics/usage?agent_id=&from=&to=  -> [{agent_id, day, calls, tokens, cost}]
+- GET /api/audit?limit=50      -> [{id, at, actor, action, entity, entity_id, detail}]
+
+Salute
+------
+- GET /api/health -> {"status":"ok","db":"ok"}
+
+Note
+----
+- Ogni scrittura produce una riga in audit.
+- Date in ISO 8601 UTC.
+- Nessun controllo di sicurezza in questa fase (sandbox di laboratorio, come da istruzioni).
+
+Punto 3 - Ciclo di vita (`/api/lifecycle`)
+------------------------------------------
+Errori: stessa forma {"error","message"}.
+Codice di errore aggiunto: invalid_state (409), per transizioni o azioni non consentite dallo stato corrente.
+
+Stati dell'agente (campo status dell'agente): registered -> active <-> suspended; retired è definitivo.
+Ambienti: development, staging, production.
+
+Metodo  Percorso  Note
+GET  /api/lifecycle/agents/{id}  stato, versione corrente per ambiente, elenco versioni
+GET  /api/lifecycle/agents/{id}/versions  elenco versioni (lista di stringhe)
+POST  /api/lifecycle/agents/{id}/versions  {version_label}; 201; duplicato 409
+POST  /api/lifecycle/agents/{id}/deploy  {environment, version_label, note?}; 201 con la voce di registro; la versione deve esistere; 409 invalid_state se l'agente è sospeso o dismesso
+POST  /api/lifecycle/agents/{id}/promote  {to_environment, note?}; 201; development -> staging, staging -> production, copia la versione corrente dell'ambiente di partenza; 409 invalid_state se l'agente è sospeso o dismesso
+GET  /api/lifecycle/agents/{id}/deployments?limit=50  registro di deploy e promozioni, dal più recente
+POST  /api/lifecycle/agents/{id}/suspend  {note?}; da registered o active; risponde con lo stato
+POST  /api/lifecycle/agents/{id}/reactivate  da suspended; risponde con lo stato
+POST  /api/lifecycle/agents/{id}/retire  da registered, active o suspended; definitivo; risponde con lo stato
+POST  /api/lifecycle/agents/{id}/calls  monitoraggio: {environment?, success?, latency_ms?, tokens?, cost?}; 201
+GET  /api/lifecycle/agents/{id}/performance?environment=&from=&to=  {calls, errors, error_rate, avg_latency_ms, max_latency_ms, tokens, cost}
+
+Schema della voce di registro (deployment): id, agent_id, action (deploy|promote), environment, from_environment, version_label, actor, note, at.
+
+Effetti sugli accessi (POST /api/integrations/check): un agente retired riceve decision: denied, reason: agent_retired.
+Il motivo agent_retired è controllato prima di agent_not_active.
+
+Ogni deploy, promozione e cambio di stato produce una riga in audit.
+
+Punto 4 - R2: audit a catena con hash
+-------------------------------------
+Ogni riga di audit e di access_event riceve prev_hash e hash (SHA-256 concatenato con la riga precedente).
+Le righe scritte prima dell'introduzione della catena restano senza hash: sono "legacy", contate ma non verificabili.
+
+Metodo  Percorso  Note
+GET  /api/audit/verify  ricalcola le due catene; 200 con {valid, audit, access_event}; ogni catena riporta checked, legacy, valid, broken_at_id, broken_reason
+
+valid è true solo se entrambe le catene sono integre. In caso di alterazione, broken_at_id indica la prima riga non coerente.
+
+Punto 4 - R3: gate di valutazione prima di staging e produzione
+---------------------------------------------------------------
+Il passaggio a staging o production (deploy o promozione) richiede che l'ultima valutazione registrata per l'agente sia passed e riguardi la versione che si sta portando. Altrimenti risposta 409 invalid_state. Lo sviluppo (development) non è soggetto al gate.
+
+Metodo  Percorso  Note
+POST  /api/lifecycle/agents/{id}/evaluations  {version_label, result: passed  failed, note?}; 201; la versione deve essere registrata (400); agente dismesso 409
+GET  /api/lifecycle/agents/{id}/evaluations?limit=50  valutazioni, dalla più recente (massimo 500)
+
+Campi della valutazione: id, agent_id, version_label, result, evaluator, note, at.
+Il gate si applica anche a POST /deploy e POST /promote quando l'ambiente di arrivo è staging o production.
+
+Punto 4 - R1: approvazione umana per azioni sensibili (`/api/integrations/approvals`)
+------------------------------------------------------------------------
+Una voce di allowlist con requires_approval: true marca la coppia agente-risorsa come sensibile.
+Ogni accesso a una coppia sensibile richiede un'approvazione valida, che vale per un solo accesso.
+
+Nuovi campi:
+- POST /api/integrations/allowlist: accetta requires_approval (default false); la risposta e l'elenco lo riportano.
+- POST /api/integrations/check: nuovo motivo approval_required (negato) e nuovo campo approval_id (id della richiesta collegata, altrimenti null).
+  Con approvazione valida risponde allowed con motivo ok_approved, e la richiesta passa a used.
+
+Metodo  Percorso  Note
+GET  /api/integrations/approvals?status=&agent_id=  status: pending, approved, rejected, used
+POST  /api/integrations/approvals  {agent_id, resource_id, justification?}; 201 pending; la coppia deve essere sensibile (400 altrimenti)
+POST  /api/integrations/approvals/{id}/approve  {note?}; solo da pending (409 invalid_state altrimenti)
+POST  /api/integrations/approvals/{id}/reject  {note?}; solo da pending (409 invalid_state altrimenti)
+
+Campi della richiesta: id, agent_id, resource_id, status, requested_by, justification, decided_by, decision_note, created_at, decided_at, used_at.
+Stati: pending -> approved -> used; pending -> rejected.
+
+Punto 4 - R4: dichiarazione di trasparenza sull'agente
+------------------------------------------------------
+Campi aggiuntivi dell'agente (letti e scritti da POST e PUT /api/agents):
+- interacts_with_people (boolean, default false): l'agente interagisce con persone.
+- interaction_language (stringa o null): lingua dell'interazione, come tag tipo it o en-GB.
+  Obbligatoria quando interacts_with_people è true (400 altrimenti). Formato non valido: 400.
+
+Limiti dei valori (validazione comune)
+--------------------------------------
+- Importi (costi, costo massimo mensile, costo dichiarato): da 0 a 99999999999999.9999 (DECIMAL(18,4)). Oltre, 400 validation_error.
+- Interi (chiamate al giorno, token, latenza): da 1 (chiamate al giorno) o 0 (token, latenza) a 2147483647 (INT). Oltre, 400.
+- Lunghezze dei testi: contate in caratteri, non in byte (un nome di 150 caratteri accentati è valido).
+- Corpo JSON: un solo oggetto; dati dopo l'oggetto danno 400 bad_request.
+- Stato dismesso: la PUT non può cambiare lo stato di un agente dismesso (409 invalid_state).
+
+Audit: dettaglio tradotto (chiavi e parametri)
+----------------------------------------------
+Dalla versione con traduzione del tracciamento, il campo detail di ogni nuova riga è un JSON:
+{"key": "<chiave>", "params": {...}}. La GUI traduce la chiave nella lingua dell'utente e sostituisce i parametri.
+Le righe scritte prima di questo formato restano con il testo originale in italiano e vanno mostrate così come sono.
+Le chiavi sono in ordine alfabetico per gruppo; i parametri sono sempre presenti (eventualmente {}).
+
+Chiave  Entità  Parametri
+agent_created  agent  name
+agent_updated  agent  name
+status_change  agent  from, to; in PUT anche name; dai cicli di vita anche note (facoltativo)
+agent_deleted  agent  name
+configuration_created  configuration  key
+configuration_updated  configuration  key
+configuration_deleted  configuration  key
+resource_saved  integration_resource  kind, name, status (creazione e modifica)
+resource_deleted  integration_resource  name
+allowlist_added  allowlist  agent_id, resource_id, requires_approval
+allowlist_removed  allowlist  nessuno
+limit_saved  limit  agent_id, resource_id (creazione e modifica)
+limit_deleted  limit  nessuno
+approval_requested  approval  nessuno
+approval_approved  approval  nessuno
+approval_rejected  approval  nessuno
+evaluation_recorded  agent_evaluation  version, result
+version_registered  agent_version  version
+deployment  agent_deployment  version, environment
+promotion  agent_deployment  version, from, to
+
+Punto 4 - Conformità (`/api/compliance`)
+----------------------------------------
+Specifica: docs/API.txt. I gateway AI sono risorse con kind: "ai_gateway" (/api/integrations/resources).
+
+Misure di sicurezza dei dati
+
+Metodo  Percorso  Note
+GET  /api/compliance/resources/{id}/security  senza misure salvate: classification internal, cifratura e pii_allowed false, retention_days null
+PUT  /api/compliance/resources/{id}/security  {classification, encrypted_at_rest, encrypted_in_transit, pii_allowed, retention_days?}; sostituzione completa
+
+classification: public, internal, confidential, restricted. retention_days: intero >= 0 o null.
+
+Politiche di governance
+
+Metodo  Percorso  Note
+GET  /api/compliance/policies  elenco
+POST  /api/compliance/policies  201; name unico (409 se duplicato)
+GET, PUT, DELETE  /api/compliance/policies/{id}  PUT sostituisce tutto; enabled default true
+GET  /api/compliance/agents/{id}/policies  valuta le politiche attive: [{policy_id, name, rule_type, pass, reason}]
+
+Tipi di regola (rule_type) e parametri:
+- transparency_required: se l'agente interagisce con persone, la lingua è dichiarata. Con R4 attivo non può fallire via API: resta come controllo difensivo.
+- evaluation_before_production: se l'agente è in produzione, l'ultima valutazione è superata per la versione in produzione. Senza versione in produzione: superata.
+- max_classification: params: {"max": "public|internal|confidential|restricted"}. Ogni risorsa in allowlist ha classificazione <= max (default internal).
+- pii_requires_approval: ogni risorsa in allowlist con pii_allowed è marcata requires_approval.
+
+params è un oggetto JSON (default {}). Con max_classification il max è obbligatorio e valido.
+
+Librerie di framework e controlli
+
+Metodo  Percorso  Note
+GET  /api/compliance/frameworks  con i controlli annidati in controls
+POST  /api/compliance/frameworks  {code, name, version?, source_url?, validation_note?}; 201
+PUT, DELETE  /api/compliance/frameworks/{id}  DELETE rimuove controlli e valutazioni collegati
+POST  /api/compliance/controls  {framework_id, code, title, description?}; 201; codice unico nel framework
+PUT, DELETE  /api/compliance/controls/{id}
+
+I dati iniziali (quattro framework, dieci controlli) sono un seed marcato validation_note "da validare dal responsabile conformità"; i titoli dei controlli iniziano con "[da validare]".
+
+Valutazione dei controlli per agente
+
+Metodo  Percorso  Note
+GET  /api/compliance/agents/{id}/assessments  un elemento per controllo; senza valutazione status = not_assessed
+PUT  /api/compliance/agents/{id}/assessments/{control_id}  {status, evidence_note?}; status: compliant, non_compliant, not_assessed, not_applicable; 200
+
+Vista d'insieme
+
+GET /api/compliance/overview -> {frameworks: [{framework_id, code, name, controls_total, agents_total, agents_compliant, compliant_percent}], policies_failing}.
+Un agente è conforme a un framework se ogni suo controllo è compliant o not_applicable. policies_failing conta le coppie (agente, politica attiva) non superate.
+
+Chiavi di audit aggiunte: policy_saved, policy_deleted (name, rule_type), framework_saved, framework_deleted (code), control_saved, control_deleted (code), resource_security_saved (resource_id, classification), assessment_saved (control, status).
+
+Punto 5 - Guardrail (`/api/guardrails`)
+---------------------------------------
+Specifica: docs/API.txt. Limite dichiarato: il rilevamento è basato su regole ed espressioni regolari, non su modelli di intelligenza artificiale.
+
+Metodo  Percorso  Note
+GET  /api/guardrails  elenco
+POST  /api/guardrails  201; {name, type, params?, scope, agent_id?, resource_id?, enabled?}
+GET, PUT, DELETE  /api/guardrails/{id}  PUT sostituisce tutto
+POST  /api/guardrails/evaluate  {agent_id, resource_id?, direction: input  output, text}; 200 {decision: allow  mask  block, text, violations: [{guardrail_id, type, detail}]}
+GET  /api/guardrails/events?agent_id=&decision=&limit=50  registro delle valutazioni, senza testo
+GET  /api/guardrails/summary  ultime 24 ore: {window_hours, total, by_decision, by_type}
+
+Tipi (type) e parametri:
+- pii_mask: sostituisce con [PII:TIPO] i dati personali; esito mask. params.types facoltativo (email, phone, cf, iban, card); default tutti.
+- pii_block: nega se trova dati personali; esito block. Stessi params.types.
+- keyword_block: params {"terms": [...]}; nega se trova un termine, senza distinguere maiuscole.
+- max_length: params {"max_chars": n}; nega se il testo è più lungo (in caratteri).
+- rate_limit_per_minute: params {"limit": n}; nega quando l'agente ha già n valutazioni nell'ultimo minuto.
+- prompt_injection: nega i tentativi tipici di sovrascrittura delle istruzioni (italiano e inglese).
+
+Ambito: global, agent (con agent_id), resource (con resource_id).
+
+Regole di valutazione:
+- si applicano le guardrail attive nell'ambito, in ordine di id;
+- le regole di mascheramento trasformano il testo in sequenza;
+- le regole di blocco leggono il testo ricevuto: un mascheramento non nasconde un blocco;
+- block prevale su mask. Con esito block, il campo text è vuoto: il testo bloccato non viene restituito.
+
+Registro: ogni valutazione produce una riga con agente, risorsa, direzione, esito, violazioni, lunghezza in caratteri e SHA-256 del testo. Il testo non viene mai salvato. La valutazione è serializzata per agente, così il limite di frequenza è esatto anche con richieste concorrenti.
+
+Chiavi di audit aggiunte: guardrail_saved (name, type), guardrail_deleted (name).
+
+Guardrail: parametri delle violazioni
+
+Ogni violazione in violations ha guardrail_id, type, detail (testo in italiano, invariato) e params con chiavi stabili, da tradurre nella GUI:
+
+Tipo  params
+pii_mask  {"count": n, "kinds": ["email", "phone", ...]} (n = dati mascherati; kinds in ordine fisso: iban, card, cf, email, phone)
+pii_block  {"kinds": [...]}
+keyword_block  {"count": n} (n = termini trovati)
+max_length  {"length": n, "max": m} (lunghezza in caratteri)
+rate_limit_per_minute  {"count": n, "limit": m} (valutazioni nell'ultimo minuto)
+prompt_injection  {}
+
+Punto 6 - Valutazione (`/api/evaluation`)
+-----------------------------------------
+Specifica: docs/API.txt. Il testo dei passi non viene mai salvato. Limite dichiarato: nessuna ingestione OTLP; nessun giudizio automatico con modello (i punteggi arrivano da un giudice esterno).
+
+Metodo  Percorso  Note
+POST  /api/evaluation/traces  {agent_id, trace_id, outcome: success  failure  partial, goal_met, cost?, environment?, steps: [{type: llm  tool  reasoning  memory, name, tokens?, latency_ms?, ok?, memory_age_days?}]}; 201; trace_id unico per agente (409)
+GET  /api/evaluation/traces?agent_id=&limit=50  tracce senza testo, dalla più recente
+GET, POST  /api/evaluation/rules  regole: type in max_tokens_per_trace (max), max_latency_ms (max), max_error_rate (max 0..1), drift_threshold (max_delta 0..1), memory_stale_days (max_days); un solo esemplare per tipo (409)
+GET, PUT, DELETE  /api/evaluation/rules/{id}
+POST  /api/evaluation/agents/{id}/scores  {score: 1..5, judge, note?}; 201
+GET  /api/evaluation/agents/{id}/summary  traces, success_rate, goal_rate, avg_latency_ms, avg_tokens_per_trace, error_rate, rule_violations, avg_score, scores, drift_flag, drift_delta, stale_memory_steps
+GET  /api/evaluation/agents/{id}/violations?limit=50  {rule_type, trace_ref, detail, at}
+
+Le violazioni si calcolano all'ingestione della traccia. Il drift confronta le ultime 10 tracce con le 10 precedenti (tasso di successo). Senza regola drift la soglia è 0,2; senza regola memoria i passi stale sono quelli oltre 30 giorni.
+
+Punto 7 - Marketplace (`/api/marketplace`)
+------------------------------------------
+Metodo  Percorso  Note
+GET, POST  /api/marketplace/listings  {provider, name, version?, framework?, price_model: free  subscription  per_use, price, currency: EUR  USD, certified, security_review: pending  approved  rejected, status: listed  hidden}; free ha price 0
+GET, PUT, DELETE  /api/marketplace/listings/{id}
+GET  /api/marketplace/requests?status=  pending, approved, rejected, provisioned
+POST  /api/marketplace/requests  {listing_id, requested_by, justification?}; 201 pending; 409 invalid_state se l'inserzione non è listed con revisione approved
+GET  /api/marketplace/requests/{id}
+POST  /api/marketplace/requests/{id}/approve  {note?}; solo da pending
+POST  /api/marketplace/requests/{id}/reject  {note?}; solo da pending
+POST  /api/marketplace/requests/{id}/provision  solo da approved; una sola volta; 201 con l'agente (origine marketplace, stato registered, fornitore, versione, framework, costo mensile dal prezzo se subscription)
+
+Punto 8 - FinOps (`/api/finops`)
+--------------------------------
+Costi: usage_cost (monitoraggio) in EUR; fixed_cost = costo mensile per ciascun mese toccato dal periodo, solo per agenti in EUR (gli agenti in USD in fixed_cost_other_currency). roi = (valore - costo) / costo, null se il costo è zero. cost_per_success = costo totale / successi, null senza successi.
+
+Metodo  Percorso  Note
+POST  /api/finops/outcomes  {agent_id, outcome: success  failure  partial, value_eur, period: YYYY-MM-DD, note?}; 201
+GET  /api/finops/agents/{id}?from=&to=  {usage_cost, fixed_cost, total_cost, fixed_cost_other_currency, outcomes, value_eur, roi, cost_per_success}; from e to obbligatori (YYYY-MM-DD, from <= to)
+GET  /api/finops/summary?from=&to=&group_by=framework  origin  {group_by, from, to, groups: [{key, agents, usage_cost, fixed_cost, total_cost, outcomes, value_eur, roi, cost_per_success}]}; senza framework il gruppo è "(nessuno)"
+
+Campo framework sull'agente (testo libero, massimo 100 caratteri): LangGraph, CrewAI, AutoGen, Google ADK, AWS AgentCore, Microsoft Foundry, altro.
+
+Identità per agente (`/api/identity`)
+-------------------------------------
+Ogni agente ha un identity_id (UUID) alla creazione. Lo si legge in ogni risposta agente insieme a identity_revoked_at.
+
+Metodo  Percorso  Note
+GET  /api/identity/agents/{id}  {agent_id, identity_id, revoked, revoked_at}
+POST  /api/identity/agents/{id}/revoke  revoca definitiva; 200; una seconda revoca dà 409 invalid_state
+
+Effetto su /api/integrations/check: un'identità revocata nega con reason: agent_revoked. Il controllo viene dopo la risorsa disattivata e prima di ogni altro controllo sull'agente.
+La sospensione blocca l'agente subito; la riattivazione richiede la chiamata esplicita reactivate.
+
+Chiavi di audit aggiunte: identity_revoked (name), outcome_recorded (outcome, period), trace_recorded (trace_id, outcome), score_recorded (score, judge), eval_rule_saved (rule_type), eval_rule_deleted (rule_type), listing_saved (name, provider), listing_deleted (name), request_created (listing_id), request_approved, request_rejected, request_provisioned (request_id, name).
+
+Valutazione: parametri delle violazioni
+
+Ogni violazione in GET /api/evaluation/agents/{id}/violations ha rule_type, trace_ref, detail (testo in italiano, invariato) e params con chiavi stabili:
+
+Tipo di regola  params
+max_tokens_per_trace  {"value": n, "max": m} (token della traccia, massimo)
+max_latency_ms  {"value": n, "max": m} (latenza totale della traccia in ms, massimo)
+max_error_rate  {"rate": r, "max": m} (tasso di errore sulle ultime tracce, massimo)
+drift_threshold  {"delta": d, "max_delta": m} (scarto del tasso di successo, soglia)
+memory_stale_days  {"count": n, "max_days": m} (passi di memoria oltre il limite, giorni massimi)
+
+Chat verso OpenAI e Anthropic (`/api/chat/complete`)
+----------------------------------------------------
+Specifica: docs/CHAT.txt. Le chiamate ai fornitori passano dal backend. La chiave API è usata solo nella chiamata al fornitore: non viene salvata, registrata né restituita.
+
+Body: {provider: anthropic|openai, api_key, model, system?, messages: [{role: user|assistant, content}], agent_id, resource_id, environment?, price_input_per_1k?, price_output_per_1k?}.
+L'ultimo messaggio deve avere role user. max_tokens (Anthropic) e max_completion_tokens (OpenAI) sono fissati a 1024.
+
+Ordine di esecuzione:
+1. controllo di accesso su agente e risorsa (come /api/integrations/check); se negato: 200 {decision: "denied", reason}, nessuna chiamata, nessun costo;
+2. guardrail in ingresso sull'ultimo messaggio utente; block -> 200 {decision: "blocked", reason: "guardrail_input"}; mask -> il testo mascherato sostituisce quello inviato;
+3. chiamata al fornitore con timeout di 60 secondi;
+4. guardrail in uscita sul testo della risposta; block -> 200 {decision: "blocked", reason: "guardrail_output", text: ""};
+5. registrazione nel monitoraggio (esito, latenza, token, costo). Il costo è zero salvo prezzi forniti nel body (per 1000 token).
+
+Risposta 200: {decision: allowed|denied|blocked, reason, text, input_tokens, output_tokens, latency_ms, guardrail: {decision: allow|mask|block, violations}}.
+Errore del fornitore (rete, timeout, stato di errore): 502 {error: "provider_error", message}, senza la chiave e senza il corpo della risposta del fornitore; la chiamata è registrata nel monitoraggio con esito negativo.
+
+Limiti dichiarati:
+- il controllo di accesso registra il costo massimo stimato (testo in ingresso, circa 3 caratteri per token, più 1024 token di risposta); un blocco dei guardrail dopo un accesso permesso lascia quel costo stimato nel budget;
+- i guardrail si applicano solo all'ultimo messaggio utente, non alla cronologia;
+- il testo dei messaggi non viene salvato: il registro dei guardrail conserva lunghezze e hash.
+
+Configurazione: CHAT_ANTHROPIC_URL e CHAT_OPENAI_URL (predefiniti: endpoint pubblici). Servono solo per i test con un fornitore finto (tests/fake_provider/).
+
+Sicurezza: utenti, sessioni e ruoli (docs/SICUREZZA.txt)
+-------------------------------------------------------
+Ogni rotta /api richiede una sessione, tranne POST /api/auth/login e GET /api/health. Senza sessione: 401 unauthenticated. Ruolo insufficiente: 403 forbidden. Con cambio password obbligatorio: 403 password_change_required (restano accessibili GET /api/auth/me, POST /api/auth/logout, POST /api/auth/change-password).
+
+Le pagine HTML senza sessione vanno a /login.html (302). La pagina /login.html è pubblica.
+
+Metodo  Percorso  Note
+POST  /api/auth/login  {username, password}; 200 {username, role, must_change_password} e cookie gencut_session (HttpOnly, SameSite=Strict, 8 ore); 401 invalid_credentials (messaggio generico); 429 too_many_attempts dopo 5 tentativi falliti in 10 minuti per lo stesso utente
+POST  /api/auth/logout  204; invalida la sessione
+GET  /api/auth/me  utente corrente, o 401
+POST  /api/auth/change-password  {old_password, new_password}; 204; minimo 8 caratteri, massimo 72 byte, diversa dal nome utente
+GET  /api/users  solo admin
+POST  /api/users  {username, role, password?}; 201; senza password ne genera una e la restituisce una volta (temporary_password); cambio obbligatorio al primo accesso
+PUT  /api/users/{id}  {role, active}; solo admin; non si toglie l'ultimo admin attivo, né si demansiona o disattiva se stessi (409 invalid_state); disattivare cancella le sessioni
+DELETE  /api/users/{id}  solo admin; 204; non si cancella se stessi né l'ultimo admin attivo (409)
+POST  /api/users/{id}/reset-password  solo admin; 200 {username, temporary_password}; cambio obbligatorio; cancella le sessioni dell'utente
+
+Ruoli: admin, manager, operator, auditor, viewer, integration.
+- admin: tutto, compresa la gestione utenti.
+- manager: crea, modifica e cancella quasi tutto; approva richieste e approvazioni; pubblica nel marketplace; revoca identità; scrive le valutazioni e i punteggi; non gestisce utenti.
+- operator: crea e modifica agenti, risorse, allowlist, limiti, versioni, deploy, promozioni, sospensioni, chiamate, esiti, tracce e richieste di marketplace; non approva, non cancella agenti né configurazioni globali, non ritira agenti.
+- auditor: lettura su tutto, più tracciamento, registro accessi, eventi dei guardrail e verifica della catena.
+- viewer: sola lettura su registro, metriche, valutazione, marketplace, FinOps, conformità e guardrail (non tracciamento né registro accessi).
+- integration: solo le rotte di chiamata degli agenti: POST /api/integrations/check, POST /api/lifecycle/agents/{id}/calls, POST /api/chat/complete, POST /api/guardrails/evaluate.
+
+La tabella completa delle regole è in backend/auth.go (authRules); se nessuna regola corrisponde, l'accesso è negato.
+
+Il tracciamento registra come actor lo username della sessione. Le righe scritte prima di questa versione hanno actor api.
+
+Limiti dichiarati: nessun HTTPS in questa versione (cookie senza attributo Secure; in produzione serve un reverse proxy HTTPS); nessun recupero via email, il reset lo fa un admin.
+
+Credenziali per le suite di regressione
+
+Le suite non contengono credenziali. Leggono l'utente di test da:
+- GENCUT_TEST_USER (predefinito qa-tester, ruolo manager)
+- GENCUT_TEST_PASSWORD (obbligatoria)
+
+Setup, una volta sola (crea l'utente di test e cambia la password dell'admin):
+    export GENCUT_ADMIN_PASSWORD='...'   # nuova password dell'admin (minimo 8 caratteri)
+    export GENCUT_TEST_PASSWORD='...'    # password dell'utente di test
+    python3 tests/setup_test_user.py
+Poi, per ogni suite: export GENCUT_TEST_PASSWORD='...' e python3 tests/regression_<nome>.py.
+tests/regression_security.py usa anche GENCUT_ADMIN_PASSWORD.
+
+Server MCP e punto di accesso unificato (docs/MCP.txt)
+-----------------------------------------------------
+Gli strumenti appartengono a una risorsa di tipo mcp_server. Per usarne uno l'agente deve avere la coppia agente-server in allowlist e una voce per lo strumento. Senza voce: tool_not_allowed.
+
+Metodo  Percorso  Note
+GET  /api/integrations/resources/{id}/tools  strumenti del server
+POST  /api/integrations/resources/{id}/tools  {name, description?, risk: low  medium  high, requires_approval?}; 201; nome unico per server (409); solo su mcp_server
+POST  /api/integrations/resources/{id}/tools/sync  legge tools/list (JSON-RPC 2.0 su HTTP) dall'endpoint; aggiunge gli strumenti nuovi (rischio low, senza approvazione), aggiorna le descrizioni; restituisce {added, updated, total}; server non raggiungibile: 502 provider_error
+PUT, DELETE  /api/integrations/tools/{tool_id}  DELETE rimuove anche i permessi collegati
+POST  /api/integrations/tool-allowlist  {agent_id, tool_id, requires_approval?}; 201; duplicato 409; senza coppia agente-server in allowlist: 400
+GET  /api/integrations/tool-allowlist?agent_id=  permessi per strumento
+DELETE  /api/integrations/tool-allowlist/{id}  204
+POST  /api/gateway/call  vedi sotto
+
+Punto di accesso: `/api/gateway/call`
+
+Body: {agent_id, resource_id, tool?, arguments?, method?, payload?}.
+- Risorsa mcp_server: tool obbligatorio; arguments è un oggetto JSON. La piattaforma invia tools/call JSON-RPC all'endpoint.
+- Risorsa api: method GET, POST, PUT o DELETE; payload testo inoltrato all'endpoint.
+- Risorsa llm_model: stessi campi di /api/chat/complete (provider, api_key, model, messages, system?, environment?, prezzi facoltativi). Gli adattatori e i controlli sono quelli della chat; la risposta è {decision, reason, result: {text, input_tokens, output_tokens, guardrail}, approval_id?, latency_ms}. La chiave API non viene salvata né restituita.
+- Altri tipi (ai_gateway): 400.
+
+Ordine dei controlli: risorsa attiva, agente (revocato, dismesso, attivo), allowlist della risorsa, voce dello strumento, approvazione (approval_required con approval_id), limiti, guardrail in ingresso sugli argomenti, chiamata, guardrail in uscita sul risultato.
+
+Risposta 200: {decision: allowed|denied|blocked, reason, result?, approval_id?, latency_ms}. Con blocked in uscita il risultato non viene restituito. Errore del server o dell'endpoint: 502 provider_error senza dettagli interni.
+
+Approvazioni: se la coppia o lo strumento richiedono approvazione, la richiesta in attesa viene aperta e si nega con approval_required; le approvazioni valide vengono prenotate e consumate solo se la chiamata avviene. Se la chiamata non riesce o un guardrail blocca, la prenotazione viene rilasciata.
+
+Registro: ogni chiamata registra l'esito in access_event e, se ha raggiunto il server, in usage_log. Argomenti e risultato non vengono salvati: solo lunghezza e SHA-256 in gateway_event.
+
+Limiti dichiarati:
+- trasporto solo HTTP con JSON-RPC (tools/list e tools/call); niente stdio, risorse o prompt MCP;
+- gli strumenti rimossi dal server restano registrati dopo la sincronizzazione (vanno cancellati a mano);
+- il costo di una chiamata gateway è zero (il gateway non riceve un costo dichiarato);
+- con mascheramento degli argomenti MCP, il risultato mascherato deve restare un oggetto JSON, altrimenti la chiamata è bloccata.
+
+Il server MCP di test è tests/fake_mcp/ (strumenti echo, fail, ping-tool; GET /ping per le risorse api). Il proxy per i modelli non ha fornitore finto nella suite MCP: il caso di successo si prova con il fornitore finto della chat.
+
+Agenti senza attività (`/api/agents/inactive`)
+----------------------------------------------
+GET /api/agents/inactive?days=N elenca gli agenti attivi che non hanno avuto attività negli ultimi N giorni (predefinito 30, da 1 a 3650; altrimenti 400).
+Un'attività è una chiamata di monitoraggio (usage_log), una decisione di controllo di accesso o del gateway (access_event), o una traccia di valutazione (eval_trace).
+Risposta: lista di {id, name, origin, status, last_activity_at}; last_activity_at è la data dell'ultimo evento, oppure null se l'agente non ha mai avuto attività.
+Gli agenti sospesi e dismessi non compaiono.
+
+Ingestione OpenTelemetry in JSON (`POST /api/evaluation/otlp`)
+--------------------------------------------------------------
+POST /api/evaluation/otlp?agent_id=N accetta il formato OTLP/JSON (resourceSpans, massimo 5 MB, 5000 span e 500 tracce per batch). Ogni traccia OpenTelemetry (stesso traceId) diventa una traccia di valutazione dell'agente indicato.
+
+Mappatura:
+- esito: success; partial se un passo è in errore; failure se lo span radice è in errore (stato codice 2);
+- passi: uno per span. Tipo da gencut.step_type (llm, tool, reasoning, memory), altrimenti dedotto da gen_ai.request.model, gen_ai.usage.input_tokens o dal nome dello span;
+- token: gen_ai.usage.input_tokens + gen_ai.usage.output_tokens; latenza dalla differenza tra inizio e fine;
+- memoria: gencut.memory_age_days sui passi di tipo memory;
+- obiettivo e costo: gencut.goal_met (booleano) e gencut.cost sullo span radice;
+- ambiente: deployment.environment nelle risorse, se valido.
+
+Risposta 200: {traces_created, traces_skipped, spans}. Le tracce già presenti (stesso trace_id per l'agente) sono saltate. Errori: 400 per formato o span senza traceId; 404 per agente inesistente.
+
+Gli attributi testuali (prompt, risposte, valori) non vengono letti né salvati. I nomi degli span vengono salvati come identificatori (massimo 150 caratteri).
+Limiti dichiarati: solo JSON, non protobuf; nessun gRPC o HTTP OTLP binario.
+
+Cookie di sessione dietro HTTPS
+
+Quando la richiesta arriva via HTTPS (TLS diretto, o dal reverse proxy con X-Forwarded-Proto: https), il cookie gencut_session ha l'attributo Secure in aggiunta a HttpOnly e SameSite=Strict. Su HTTP il cookie resta senza Secure.
+
+Scoperta: import di manifesti agente (`POST /api/agents/import`)
+----------------------------------------------------------------
+
+Corpo: un elenco JSON di agenti, con gli stessi campi di POST /api/agents (in particolare name, origin, owner, framework, version, endpoint). Massimo 500 elementi; campi sconosciuti rifiutati.
+
+- Gli agenti mancanti vengono creati (stato registered se non indicato); ognuno ha una voce di audit agent_imported.
+- Un duplicato per nome (già presente, anche con maiuscole diverse, o ripetuto nello stesso elenco) viene saltato.
+- Un elemento non valido viene segnalato senza bloccare gli altri.
+
+Risposta 200: {"created": n, "skipped": n, "errors": n, "items": [{"index", "name", "result": "created|skipped|error", "id"?, "message"?}]}. Accesso: rolesWrite.
+
+Aggiornamento dei quadri da bundle (`POST /api/compliance/frameworks/import`)
+------------------------------------------------------------------------
+
+Corpo: {"framework": {"code", "name"?, "version"?, "source_url"?, "validation_note"?}, "controls": [{"code", "title", "description"?}]}. Massimo 1000 controlli.
+
+- Il quadro deve esistere: è riconosciuto per code. Un codice sconosciuto risponde 404 e non cambia nulla (l'import non crea quadri).
+- Versione, fonte e nota vengono sostituite solo se presenti nel bundle; updated_at registra la data dell'import.
+- I controlli sono creati o aggiornati per codice. Quelli non presenti nel bundle restano.
+
+Risposta 200: {"framework": {...}, "controls_created": n, "controls_updated": n}. Accesso: rolesManage (regola /api/compliance/*).
+
+Limite: la versione non si può azzerare con l'import (un campo assente lascia il valore attuale).
+
+Deviazioni dei ragionamenti (`/api/evaluation/agents/{id}/reference`, `POST /api/evaluation/deviations`)
+------------------------------------------------------------------------
+
+Ogni agente ha una sequenza di riferimento: passi attesi, per tipo (llm, tool, reasoning, memory) e nome.
+
+- GET /api/evaluation/agents/{id}/reference legge la sequenza. Accesso: lettura.
+- PUT /api/evaluation/agents/{id}/reference con {"steps": [{"type", "name"}]} sostituisce l'intera sequenza (da 1 a 200 passi). Accesso: rolesManage.
+- POST /api/evaluation/deviations con {"trace_ref": N} (id della traccia di valutazione) confronta i passi della traccia con la sequenza dell'agente. Accesso: rolesAudit.
+
+Il confronto usa la sottosequenza comune più lunga. Deviazioni segnalate:
+- unexpected_step: passo della traccia fuori dalla sequenza (con trace_position);
+- missing_step: passo di riferimento assente dalla traccia (con reference_position); uno spostamento di ordine compare come coppia di questi due;
+- tool_not_allowed: passo di tipo tool il cui nome non è tra gli strumenti in allowlist dell'agente.
+
+Risposta 200: {"agent_id", "trace_ref", "compliant", "trace_steps", "reference_steps", "deviations": [...]}. compliant è vero se non ci sono deviazioni. Il risultato non viene salvato: è calcolato al momento. Errori: 409 no_reference_sequence se l'agente non ha sequenza; 404 se la traccia non esiste.
+
+Giudizio automatico con un modello (`POST /api/evaluation/agents/{id}/judge`)
+------------------------------------------------------------------------
+
+Corpo: {"trace_ref": N, "provider": "anthropic|openai", "api_key": "...", "model": "...", "rubric": "...", "resource_id": N, "environment"?: "..."}. La rubrica è obbligatoria (massimo 2000 caratteri). Accesso: rolesManage.
+
+- La chiamata passa dal proxy della chat: accesso dell'agente alla risorsa llm_model, guardrail su ingresso e uscita, monitoraggio. Se l'accesso è negato o un guardrail blocca, la risposta è 200 con "scored": false e la decisione: nessun punteggio viene salvato.
+- Il modello riceve solo i dati strutturali della traccia (esito, obiettivo, passi con tipo, nome, esito, latenza e token; massimo 200 passi descritti) e la rubrica. Non riceve testo, perché la piattaforma non lo conserva.
+- Il modello deve rispondere con un intero da 1 a 5, da solo o come {"score": n}. Altrimenti: 502 judge_invalid_reply, e nessun punteggio viene salvato.
+- Punteggio registrato: 201 {"scored": true, "id", "agent_id", "trace_ref", "score", "judge": "llm:<modello>", "decision"}, con voce di audit score_recorded.
+- La chiave API serve solo alla chiamata: non viene salvata, registrata né restituita. Un errore del fornitore è 502 provider_error senza chiave.

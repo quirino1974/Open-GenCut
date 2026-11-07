@@ -1,0 +1,38 @@
+SERVER MCP E ACCESSO UNIFICATO (PUNTO 2 DELLA SPECIFICA)
+-----------------------------------------------------------------
+
+Autore: Quirino Scaramastra
+
+Requisito: la piattaforma è il punto di accesso unificato per API, server MCP e LLM, e controlla quali agenti possono usare quali modelli, quali strumenti e quali fonti dati.
+
+Strumenti dei server MCP (backend, il team)
+--------------------------------------------
+- GET /api/integrations/resources/{id}/tools: elenco degli strumenti registrati per un server MCP.
+- POST /api/integrations/resources/{id}/tools {name, description, risk: low|medium|high, requires_approval}; 201; nome unico per server (409).
+- PUT /api/integrations/tools/{tool_id}, DELETE /api/integrations/tools/{tool_id}.
+- Gli strumenti sono registrati dall'amministratore o da una sincronizzazione dal server (POST /api/integrations/resources/{id}/tools/sync, che legge l'elenco tools/list dal server MCP via JSON-RPC su HTTP; se il server non risponde, 502 provider_error).
+
+Permessi per strumento
+----------------------
+- POST /api/integrations/tool-allowlist {agent_id, tool_id, requires_approval}; 201; duplicato 409.
+- GET /api/integrations/tool-allowlist?agent_id=, DELETE /api/integrations/tool-allowlist/{id}.
+- Regola: per usare uno strumento serve la coppia agente-server (allowlist esistente) e la voce per lo strumento. Uno strumento senza voce è negato (tool_not_allowed).
+
+Punto di accesso: proxy
+-----------------------
+- POST /api/gateway/call {agent_id, resource_id, tool?, arguments?, method?, payload?}.
+  - Per mcp_server: tool obbligatorio; la piattaforma esegue il controllo, poi invia tools/call JSON-RPC al server MCP con arguments e restituisce il risultato.
+  - Per api: method e payload sono inoltrati all'endpoint della risorsa (solo GET, POST, PUT, DELETE).
+- Ordine dei controlli: risorsa attiva, agente attivo o revocato, allowlist della risorsa, voce dello strumento, approvazione (approval_required con approval_id), limiti, guardrail in ingresso sugli argomenti (/api/guardrails/evaluate), chiamata, guardrail in uscita sul risultato.
+- Risposta 200: {decision: allowed|denied|blocked, reason, result?, approval_id?, latency_ms}; errore del fornitore 502 provider_error senza dettagli interni.
+- Ogni chiamata registra esito e latenza in access_event e in usage_log (costo dichiarato se presente). Gli argomenti e il risultato non vengono salvati: solo lunghezza e impronta SHA-256.
+
+Interfaccia
+--------------------
+- Nella pagina Integrazioni: scheda Strumenti (elenco per server MCP, registrazione, sincronizzazione) e permessi per strumento nella scheda Allowlist.
+- Scheda Prova chiamata: scegli agente, risorsa e strumento, inserisci gli argomenti in JSON e vedi la decisione e il risultato.
+
+Limiti dichiarati
+-----------------
+- Protocollo MCP: solo tools/list e tools/call via JSON-RPC su HTTP. Trasporti stdio e risorse/prompt MCP non sono inclusi.
+- I server MCP di test sono simulati nei test; la verifica con un server reale richiede un endpoint MCP raggiungibile.

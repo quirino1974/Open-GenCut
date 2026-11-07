@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open-GenCut - Utenti</title>
+<link rel="stylesheet" href="/theme.css?v=1">
+<style>
+  :root { --bg:#f3f6fb; --panel:#fff; --ink:#15202e; --muted:#55657a; --accent:#2563eb; --line:#dde4ee; --danger:#b91c1c; --ok:#15803d; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,"Segoe UI",Roboto,sans-serif; }
+  main { padding:20px; max-width:1100px; margin:0 auto; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:18px; box-shadow:0 1px 2px rgba(15,23,42,.06); }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:end; }
+  .row > div { flex:1 1 160px; }
+  label { display:block; font-size:.8rem; font-weight:600; color:var(--muted); margin-bottom:4px; }
+  input, select { width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:10px; font:inherit; color:var(--ink); background:var(--panel); }
+  .btn { padding:8px 14px; border:1px solid var(--line); border-radius:10px; background:var(--panel); color:var(--ink); font:inherit; font-weight:600; cursor:pointer; }
+  .btn.primary { background:linear-gradient(120deg,var(--accent),#7c3aed); color:#fff; border-color:transparent; }
+  .btn.danger { color:var(--danger); }
+  table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { font-size:.75rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  .msg { padding:12px 14px; border-radius:10px; border:1px solid var(--line); margin-bottom:14px; font-weight:600; }
+  .msg.err { color:var(--danger); border-color:var(--danger); } .msg.ok { color:var(--ok); border-color:var(--ok); }
+  .secret { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:1.05rem; background:var(--bg); padding:6px 10px; border-radius:8px; border:1px dashed var(--accent); }
+  .muted { color:var(--muted); font-size:.9rem; }
+  @media (max-width:640px) { th:nth-child(4), td:nth-child(4) { display:none; } }
+</style>
+</head>
+<body>
+<header><h1 style="margin:0;font-size:1.25rem;color:#fff">Open-GenCut <span style="color:#93c5fd">AMP</span> <span class="alpha-tag" style="display:inline-block;margin-left:6px;padding:1px 8px;border-radius:6px;background:#facc15;color:#1c2530;font-size:12px;font-weight:700">Alfa</span> - <span data-i18n="title">Utenti</span></h1></header>
+<div id="gc-nav"></div>
+<main>
+  <div id="notice"></div>
+  <div class="card">
+    <h2 style="margin-top:0" data-i18n="addTitle">Nuovo utente</h2>
+    <div class="row">
+      <div><label for="nu" data-i18n="username">Nome utente</label><input id="nu"></div>
+      <div><label for="nr" data-i18n="role">Profilo</label><select id="nr"></select></div>
+      <div><label for="np" data-i18n="passwordOpt">Password (vuota = generata)</label><input id="np" type="text" autocomplete="off"></div>
+      <div style="flex:0 0 auto"><button class="btn primary" id="add" data-i18n="btnAdd">Crea utente</button></div>
+    </div>
+    <p class="muted" data-i18n="rolesHelp">Profili: admin (tutto), manager (conformità e gestione agenti), operator (operazioni quotidiane), auditor (sola lettura con tracciamento), viewer (sola consultazione), integration (solo chiamate degli agenti).</p>
+  </div>
+  <div class="card wrap" style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th data-i18n="username">Nome utente</th><th data-i18n="role">Profilo</th><th data-i18n="active">Attivo</th><th data-i18n="mustChange">Cambio password</th><th></th>
+      </tr></thead>
+      <tbody id="ub"></tbody>
+    </table>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var ROLES = ["admin", "manager", "operator", "auditor", "viewer", "integration"];
+  var I = {
+    it: { title:"Utenti", username:"Nome utente", role:"Profilo", passwordOpt:"Password (vuota = generata)", btnAdd:"Crea utente", addTitle:"Nuovo utente", active:"Attivo", mustChange:"Cambio al prossimo accesso", yes:"Sì", no:"No", edit:"Salva", reset:"Reimposta password", del:"Elimina", tempPass:"Password temporanea (mostrata una sola volta)", created:"Utente creato.", saved:"Modifiche salvate.", deleted:"Utente eliminato.", empty:"Nessun utente.", err:"Errore", rolesHelp:"Profili: admin (tutto), manager (conformità e gestione agenti), operator (operazioni quotidiane), auditor (sola lettura con tracciamento), viewer (sola consultazione), integration (solo chiamate degli agenti).", roles:{admin:"Amministratore",manager:"Responsabile",operator:"Operatore",auditor:"Controllo",viewer:"Consultazione",integration:"Sistema (integrazione)"} },
+    en: { title:"Users", username:"User name", role:"Profile", passwordOpt:"Password (empty = generated)", btnAdd:"Create user", addTitle:"New user", active:"Active", mustChange:"Change at next sign-in", yes:"Yes", no:"No", edit:"Save", reset:"Reset password", del:"Delete", tempPass:"Temporary password (shown only once)", created:"User created.", saved:"Changes saved.", deleted:"User deleted.", empty:"No users.", err:"Error", rolesHelp:"Profiles: admin (everything), manager (compliance and agent management), operator (daily operations), auditor (read-only with audit), viewer (read-only), integration (agent calls only).", roles:{admin:"Administrator",manager:"Manager",operator:"Operator",auditor:"Auditor",viewer:"Viewer",integration:"System (integration)"} },
+    fr: { title:"Utilisateurs", username:"Nom d'utilisateur", role:"Profil", passwordOpt:"Mot de passe (vide = généré)", btnAdd:"Créer l'utilisateur", addTitle:"Nouvel utilisateur", active:"Actif", mustChange:"Changement à la prochaine connexion", yes:"Oui", no:"Non", edit:"Enregistrer", reset:"Réinitialiser le mot de passe", del:"Supprimer", tempPass:"Mot de passe temporaire (affiché une seule fois)", created:"Utilisateur créé.", saved:"Modifications enregistrées.", deleted:"Utilisateur supprimé.", empty:"Aucun utilisateur.", err:"Erreur", rolesHelp:"Profils : admin (tout), manager (conformité et gestion des agents), operator (opérations courantes), auditor (lecture seule avec traçabilité), viewer (consultation), integration (appels des agents uniquement).", roles:{admin:"Administrateur",manager:"Responsable",operator:"Opérateur",auditor:"Contrôle",viewer:"Consultation",integration:"Système (intégration)"} },
+    de: { title:"Benutzer", username:"Benutzername", role:"Profil", passwordOpt:"Passwort (leer = generiert)", btnAdd:"Benutzer anlegen", addTitle:"Neuer Benutzer", active:"Aktiv", mustChange:"Änderung bei nächster Anmeldung", yes:"Ja", no:"Nein", edit:"Speichern", reset:"Passwort zurücksetzen", del:"Löschen", tempPass:"Temporäres Passwort (nur einmal angezeigt)", created:"Benutzer angelegt.", saved:"Änderungen gespeichert.", deleted:"Benutzer gelöscht.", empty:"Keine Benutzer.", err:"Fehler", rolesHelp:"Profile: admin (alles), manager (Konformität und Agentenverwaltung), operator (tägliche Abläufe), auditor (Nur-Lesen mit Protokoll), viewer (nur Ansicht), integration (nur Agentenaufrufe).", roles:{admin:"Administrator",manager:"Verantwortlicher",operator:"Bediener",auditor:"Prüfung",viewer:"Ansicht",integration:"System (Integration)"} }
+  };
+  var lang = "it", users = [], me = null;
+  var $ = function (s) { return document.querySelector(s); };
+  function t(k) { return (I[lang] && I[lang][k]) || I.it[k] || k; }
+  function esc(v) { return String(v === null || v === undefined ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function notice(html, kind) { $("#notice").innerHTML = '<div class="msg ' + (kind || "ok") + '">' + html + "</div>"; }
+  function api(method, path, body) {
+    var o = { method: method, headers: { "Accept": "application/json" }, credentials: "same-origin" };
+    if (body !== undefined) { o.headers["Content-Type"] = "application/json"; o.body = JSON.stringify(body); }
+    return fetch("/api" + path, o).then(function (r) {
+      if (r.status === 401) { location.href = "/login.html?next=" + encodeURIComponent(location.pathname); throw new Error("401"); }
+      return r.text().then(function (txt) {
+        var d = null; try { d = txt ? JSON.parse(txt) : null; } catch (e) { d = null; }
+        if (!r.ok) throw new Error((d && d.message) || (r.status + " " + r.statusText));
+        return d;
+      });
+    });
+  }
+  function roleOpts(sel) { return ROLES.map(function (r) { return '<option value="' + r + '"' + (r === sel ? " selected" : "") + ">" + esc(t("roles")[r]) + "</option>"; }).join(""); }
+  function render() {
+    if (!users.length) { $("#ub").innerHTML = '<tr><td colspan="5">' + esc(t("empty")) + "</td></tr>"; return; }
+    $("#ub").innerHTML = users.map(function (u) {
+      return "<tr><td><strong>" + esc(u.username) + "</strong></td>" +
+        '<td><select data-role="' + u.id + '">' + roleOpts(u.role) + "</select></td>" +
+        '<td><input type="checkbox" data-active="' + u.id + '"' + (u.active ? " checked" : "") + "></td>" +
+        "<td>" + (u.must_change_password ? esc(t("yes")) : esc(t("no"))) + "</td>" +
+        '<td style="white-space:nowrap"><button class="btn" data-save="' + u.id + '">' + esc(t("edit")) + '</button> ' +
+        '<button class="btn" data-reset="' + u.id + '">' + esc(t("reset")) + '</button> ' +
+        '<button class="btn danger" data-del="' + u.id + '">' + esc(t("del")) + "</button></td></tr>";
+    }).join("");
+  }
+  function load() {
+    return api("GET", "/users").then(function (rows) { users = rows || []; render(); }).catch(function (e) { if (e.message !== "401") notice(esc(e.message), "err"); });
+  }
+  function findU(id) { return users.filter(function (u) { return String(u.id) === String(id); })[0]; }
+  function apply() {
+    document.documentElement.lang = lang;
+    document.title = t("title") + " - Open-GenCut";
+    document.querySelectorAll("[data-i18n]").forEach(function (el) { el.textContent = t(el.getAttribute("data-i18n")); });
+    $("#nr").innerHTML = ROLES.map(function (r) { return '<option value="' + r + '">' + esc(t("roles")[r]) + "</option>"; }).join("");
+    render();
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var id;
+    if (b.id === "add") {
+      var name = $("#nu").value.trim(); if (!name) return notice(esc(t("err")), "err");
+      var body = { username: name, role: $("#nr").value };
+      if ($("#np").value) body.password = $("#np").value;
+      api("POST", "/users", body).then(function (r) {
+        var extra = r && r.temporary_password ? "<br>" + esc(t("tempPass")) + ': <span class="secret">' + esc(r.temporary_password) + "</span>" : "";
+        notice(esc(t("created")) + extra, "ok"); $("#nu").value = ""; $("#np").value = ""; load();
+      }).catch(function (x) { if (x.message !== "401") notice(esc(x.message), "err"); });
+    } else if ((id = b.getAttribute("data-save"))) {
+      var role = document.querySelector('[data-role="' + id + '"]').value;
+      var active = document.querySelector('[data-active="' + id + '"]').checked;
+      api("PUT", "/users/" + id, { role: role, active: active }).then(function () { notice(esc(t("saved"))); load(); }).catch(function (x) { if (x.message !== "401") notice(esc(x.message), "err"); });
+    } else if ((id = b.getAttribute("data-reset"))) {
+      api("POST", "/users/" + id + "/reset-password", {}).then(function (r) {
+        notice(esc(findU(id).username) + ": " + esc(t("tempPass")) + ' <span class="secret">' + esc(r.temporary_password) + "</span>", "ok"); load();
+      }).catch(function (x) { if (x.message !== "401") notice(esc(x.message), "err"); });
+    } else if ((id = b.getAttribute("data-del"))) {
+      if (!confirm(findU(id).username + "?")) return;
+      api("DELETE", "/users/" + id).then(function () { notice(esc(t("deleted"))); load(); }).catch(function (x) { if (x.message !== "401") notice(esc(x.message), "err"); });
+    }
+  });
+  window.addEventListener("gc-lang", function (e) { lang = e.detail; apply(); });
+  try { var s = localStorage.getItem("gencut.lang"); if (s && I[s]) lang = s; } catch (x) {}
+  apply();
+  load();
+})();
+</script>
+<script src="/nav.js?v=7"></script>
+</body>
+</html>

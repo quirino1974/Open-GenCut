@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open-GenCut - Guida</title>
+<style>
+  :root { --bg:#f5f7fa; --panel:#fff; --ink:#1c2530; --muted:#5d6b7a; --accent:#1f6feb; --line:#d9e0e7; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --line:#2a3644; }
+  }
+  :root[data-theme="dark"] { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --line:#2a3644; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.6 system-ui,"Segoe UI",Roboto,sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; padding:14px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:20px; margin:0; } header h1 span { color:var(--accent); }
+  .alpha-tag { display:inline-block; margin-left:6px; padding:1px 8px; border-radius:6px; background:#f9a825; color:#1c2530; font-size:12px; font-weight:700; vertical-align:middle; letter-spacing:.04em; }
+  select { background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:7px 9px; }
+  main { padding:16px; max-width:860px; margin:0 auto; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:14px; }
+  details { border-bottom:1px solid var(--line); padding:10px 0; }
+  details:last-child { border-bottom:none; }
+  summary { font-weight:700; cursor:pointer; font-size:16px; }
+  ol, ul { padding-left:20px; }
+  .help { color:var(--muted); font-size:14px; }
+  .tip { border-left:3px solid var(--accent); padding:6px 12px; margin:8px 0; background:var(--bg); border-radius:6px; }
+</style>
+<link rel="stylesheet" href="/theme.css?v=1">
+</head>
+<body>
+<header>
+  <h1>Open-GenCut <span>AMP</span> <span class="alpha-tag">Alfa</span> - <span data-i18n="title">Guida</span></h1>
+  <select id="lang" aria-label="Language" style="width:auto">
+    <option value="it">Italiano</option><option value="en">English</option>
+    <option value="fr">Français</option><option value="de">Deutsch</option>
+  </select>
+</header>
+<div id="gc-nav"></div>
+<main>
+  <div class="card">
+    <h2 style="margin-top:0" data-i18n="h.intro">Come si usa Open-GenCut</h2>
+    <p data-i18n="p.intro">Questa guida descrive ogni modulo: a cosa serve, i passi principali e gli esiti che puoi incontrare. Apri una sezione per leggerla. Per i dettagli di ogni maschera, usa il pulsante Aiuto della pagina.</p>
+    <p class="help" data-i18n="p.alpha">Versione alfa per il laboratorio: non usare in produzione.</p>
+  </div>
+  <div class="card" id="sections"></div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var T = {
+    it: { title:"Guida", h:{intro:"Come si usa Open-GenCut"}, p:{intro:"Questa guida descrive ogni modulo: a cosa serve, i passi principali e gli esiti che puoi incontrare. Apri una sezione per leggerla. Per i dettagli di ogni maschera, usa il pulsante Aiuto della pagina.",alpha:"Versione alfa per il laboratorio: non usare in produzione."},
+      out:{allowed:"Consentito",denied:"Negato",blocked:"Bloccato"},
+      s:[
+        ["Registro agenti","A cosa serve: elenco unico di tutti gli agenti, interni, di terze parti o dal marketplace.",["Clicca Aggiungi agente, compila nome, origine, proprietario e stato.","Se l'agente interagisce con persone, indica la lingua: è obbligatoria.","Filtra per origine o stato, modifica o cancella dalla riga.","Le configurazioni (chiave e valore) sono nella scheda Configurazioni; metriche e tracciamento nelle schede dedicate."]],
+        ["Integrazioni","A cosa serve: decidere quali agenti possono usare modelli, API, server MCP, fonti dati e gateway AI.",["Aggiungi le risorse nella scheda Risorse (con il tipo corretto).","Consenti la risorsa all'agente in Allowlist; se serve un'approvazione umana, attiva Approvazione richiesta.","Imposta i limiti di chiamate al giorno e di costo al mese nella scheda Limiti.","Verifica un accesso nella scheda Verifica: il registro accessi mostra ogni decisione."],"Motivi di diniego: non in allowlist, limite raggiunto, agente non attivo o dismesso, approvazione richiesta."],
+        ["Ciclo di vita","A cosa serve: versioni, distribuzione e promozione dell'agente, con valutazioni e monitoraggio.",["Registra una versione nella scheda Versioni.","Distribuisci in sviluppo, poi promuovi in staging e produzione (la promozione chiede conferma).","La promozione verso staging o produzione richiede una valutazione superata nella scheda Valutazioni.","Sospendi, riattiva o dismetti l'agente. La dismissione è definitiva.","Identità: scheda Identità, con la revoca definitiva."]],
+        ["Conformità","A cosa serve: verificare che gli agenti rispettino politiche e controlli normativi.",["Crea le politiche (trasparenza, valutazione prima della produzione, classificazione, dati personali).","Nella scheda Agente vedi l'esito di ogni politica e valuta i controlli con una nota di evidenza.","Nella scheda Sicurezza dati classifica le risorse e indica cifratura e dati personali ammessi.","I quadri e i controlli normativi sono una libreria da validare."]],
+        ["Guardrail","A cosa serve: applicare regole a runtime sui messaggi in ingresso e in uscita.",["Crea una regola scegliendo tipo, ambito e parametri (JSON).","Tipi: mascheramento o blocco dati personali, parole vietate, lunghezza massima, frequenza, rilevamento di prompt injection.","Nella scheda Prova verifica un testo: l'esito è consentito, mascherato o bloccato.","Il registro mostra le valutazioni senza il testo: solo lunghezza e impronta."]],
+        ["Valutazione","A cosa serve: controllare le tracce di esecuzione di un agente e segnalare le violazioni.",["Registra una traccia con esito, obiettivo raggiunto, costo e passi.","Definisci una regola per tipo (token, latenza, errori, deriva, memoria) con la soglia.","Il riepilogo mostra successo, latenza, errori e deriva; le violazioni hanno il dettaglio tradotto.","I giudizi arrivano da un giudice esterno: la piattaforma non li produce."]],
+        ["Marketplace","A cosa serve: scoprire e acquistare agenti di terze parti con governance.",["Un'inserzione va pubblicata e approvata dalla revisione di sicurezza.","Crea una richiesta: non è ammessa se l'inserzione non è pronta.","Approva o rifiuta la richiesta, poi provisiona: l'agente entra nel registro con origine marketplace, una sola volta."]],
+        ["FinOps","A cosa serve: confrontare costi e valore prodotto da ogni agente.",["Registra gli esiti (successo, fallimento, parziale) con il valore in EUR e il periodo.","Nella scheda Agente scegli le date: vedi costo a consumo, costo fisso, ROI e costo per successo.","Il riepilogo raggruppa per framework o per origine.","USD e EUR non si sommano."]],
+        ["Test chatbot","A cosa serve: provare il collegamento a ChatGPT o Claude attraverso Open-GenCut.",["Inserisci la chiave API nella pagina: non viene salvata.","Registra l'agente di test e la risorsa del fornitore.","Scrivi un messaggio: l'accesso, i guardrail e il monitoraggio si applicano a ogni chiamata.","Un messaggio non autorizzato o vietato non raggiunge il fornitore."]],
+        ["SDK Python","A cosa serve: integrare un agente della tua applicazione con la piattaforma, senza passare dalle pagine.",["Copia la cartella sdk/ del progetto e importa la classe Client.", "Accedi con un utente di tipo integrazione (profilo Sistema).", "Prima di usare una risorsa chiama check: consentito o negato, con il motivo.", "Applica i guardrail con guard_input e guard_output: il messaggio vietato solleva l'eccezione Blocked.", "Dopo la chiamata registra esito, latenza, token e costo con record_call."],"La chiave API di un fornitore non viene salvata dall'SDK: passala alle chiamate del gateway o della chat."],
+        ["Info e navigazione","A cosa serve: informazioni sul programma e collegamento tra le pagine.",["La barra in alto porta a tutte le pagine; Registro agenti riporta alla pagina principale.","La pagina Info riporta versione, autore, copyright e licenza."]]
+      ],
+      tip:"Suggerimento: ogni pagina ha il pulsante Aiuto con la descrizione della pagina."},
+    en: { title:"Guide", h:{intro:"How to use Open-GenCut"}, p:{intro:"This guide describes each module: what it is for, the main steps and the outcomes you may see. Open a section to read it. For the details of each screen, use the Help button of the page.",alpha:"Lab alpha version: do not use in production."},
+      out:{allowed:"Allowed",denied:"Denied",blocked:"Blocked"},
+      s:[
+        ["Agent registry","What it is for: one list of all agents, internal, third-party or from the marketplace.",["Click Add agent and fill in name, origin, owner and status.","If the agent interacts with people, give the language: it is required.","Filter by origin or status; edit or delete from the row.","Configurations (key and value) are in their own tab; metrics and audit in dedicated tabs."]],
+        ["Integrations","What it is for: decide which agents may use models, APIs, MCP servers, data sources and AI gateways.",["Add resources in the Resources tab, with the right type.","Allow the resource to the agent in Allowlist; if a human approval is needed, enable Approval required.","Set daily call and monthly cost limits in the Limits tab.","Check an access in the Check tab: the access log shows every decision."],"Denial reasons: not in allowlist, limit reached, agent not active or retired, approval required."],
+        ["Lifecycle","What it is for: versions, deployment and promotion of the agent, with evaluations and monitoring.",["Register a version in the Versions tab.","Deploy to development, then promote to staging and production (promotion asks for confirmation).","Promotion to staging or production requires a passed evaluation in the Evaluations tab.","Suspend, reactivate or retire the agent. Retirement is permanent.","Identity: Identity tab, with permanent revocation."]],
+        ["Compliance","What it is for: check that agents follow policies and regulatory controls.",["Create policies (transparency, evaluation before production, classification, personal data).","In the Agent tab see each policy result and assess the controls with an evidence note.","In Data security classify resources and set encryption and personal data allowed.","Frameworks and controls are a library to validate."]],
+        ["Guardrails","What it is for: apply runtime rules to incoming and outgoing messages.",["Create a rule choosing type, scope and parameters (JSON).","Types: personal data masking or blocking, forbidden words, maximum length, rate, prompt injection detection.","In the Test tab check a text: the result is allowed, masked or blocked.","The log shows evaluations without the text: only length and fingerprint."]],
+        ["Evaluation","What it is for: check the execution traces of an agent and flag violations.",["Record a trace with outcome, goal reached, cost and steps.","Define one rule per type (tokens, latency, errors, drift, memory) with its threshold.","The summary shows success, latency, errors and drift; violations have translated details.","Judgements come from an external judge: the platform does not produce them."]],
+        ["Marketplace","What it is for: discover and buy third-party agents with governance.",["A listing must be published and approved by the security review.","Create a request: not allowed if the listing is not ready.","Approve or reject the request, then provision: the agent enters the registry with marketplace origin, only once."]],
+        ["FinOps","What it is for: compare costs and value produced by each agent.",["Record outcomes (success, failure, partial) with the value in EUR and the period.","In the Agent tab choose the dates: see usage cost, fixed cost, ROI and cost per success.","The summary groups by framework or origin.","USD and EUR are not summed."]],
+        ["Chatbot test","What it is for: test the connection to ChatGPT or Claude through Open-GenCut.",["Enter the API key on the page: it is not stored.","Register the test agent and the provider resource.","Write a message: access, guardrails and monitoring apply to every call.","A message that is not allowed or forbidden never reaches the provider."]],
+        ["Python SDK","What it is for: integrate an agent of your application with the platform, without going through the pages.",["Copy the sdk/ folder of the project and import the Client class.", "Sign in with an integration user (System profile).", "Before using a resource call check: allowed or denied, with the reason.", "Apply the guardrails with guard_input and guard_output: a forbidden message raises the Blocked exception.", "After the call record outcome, latency, tokens and cost with record_call."],"The SDK does not store a provider API key: pass it to the gateway or chat calls."],
+        ["Info and navigation","What it is for: program information and links between pages.",["The bar at the top links to all pages; Agent registry returns to the main page.","The Info page shows version, author, copyright and license."]]
+      ],
+      tip:"Tip: every page has a Help button with the description of the page."},
+    fr: { title:"Guide", h:{intro:"Comment utiliser Open-GenCut"}, p:{intro:"Ce guide décrit chaque module : son rôle, les étapes principales et les résultats possibles. Ouvrez une section pour la lire. Pour le détail de chaque écran, utilisez le bouton Aide de la page.",alpha:"Version alpha de laboratoire : ne pas utiliser en production."},
+      out:{allowed:"Autorisé",denied:"Refusé",blocked:"Bloqué"},
+      s:[
+        ["Registre des agents","Rôle : une liste unique de tous les agents, internes, de tiers ou du marketplace.",["Cliquez sur Ajouter un agent et renseignez nom, origine, propriétaire et statut.","Si l'agent interagit avec des personnes, indiquez la langue : elle est obligatoire.","Filtrez par origine ou statut ; modifiez ou supprimez depuis la ligne.","Les configurations (clé et valeur) ont leur onglet ; les indicateurs et la traçabilité aussi."]],
+        ["Intégrations","Rôle : décider quels agents peuvent utiliser modèles, API, serveurs MCP, sources de données et passerelles IA.",["Ajoutez les ressources dans l'onglet Ressources, avec le bon type.","Autorisez la ressource à l'agent dans la liste blanche ; si une approbation humaine est requise, activez-la.","Fixez les limites d'appels par jour et de coût par mois dans l'onglet Limites.","Vérifiez un accès dans l'onglet Vérifier : le journal affiche chaque décision."],"Motifs de refus : hors liste blanche, limite atteinte, agent non actif ou retiré, approbation requise."],
+        ["Cycle de vie","Rôle : versions, déploiement et promotion de l'agent, avec évaluations et supervision.",["Enregistrez une version dans l'onglet Versions.","Déployez en développement, puis promouvez en préproduction et en production (la promotion demande une confirmation).","La promotion vers la préproduction ou la production exige une évaluation réussie.","Suspendez, réactivez ou retirez l'agent. Le retrait est définitif.","Identité : onglet Identité, avec révocation définitive."]],
+        ["Conformité","Rôle : vérifier que les agents respectent les politiques et les contrôles réglementaires.",["Créez les politiques (transparence, évaluation avant production, classification, données personnelles).","Dans l'onglet Agent, voyez le résultat de chaque politique et évaluez les contrôles avec une note de preuve.","Dans Sécurité des données, classez les ressources et indiquez chiffrement et données personnelles autorisées.","Les référentiels et contrôles forment une bibliothèque à valider."]],
+        ["Garde-fous","Rôle : appliquer des règles à l'exécution sur les messages entrants et sortants.",["Créez une règle en choisissant type, portée et paramètres (JSON).","Types : masquage ou blocage des données personnelles, mots interdits, longueur maximale, fréquence, détection d'injection de prompt.","Dans l'onglet Essai, vérifiez un texte : le résultat est autorisé, masqué ou bloqué.","Le journal affiche les évaluations sans le texte : seulement la longueur et l'empreinte."]],
+        ["Évaluation","Rôle : contrôler les traces d'exécution d'un agent et signaler les violations.",["Enregistrez une trace avec le résultat, l'objectif atteint, le coût et les étapes.","Définissez une règle par type (jetons, latence, erreurs, dérive, mémoire) avec son seuil.","La synthèse montre succès, latence, erreurs et dérive ; les violations ont un détail traduit.","Les jugements viennent d'un juge externe : la plateforme ne les produit pas."]],
+        ["Marketplace","Rôle : découvrir et acquérir des agents de tiers avec gouvernance.",["Une offre doit être publiée et approuvée par la revue de sécurité.","Créez une demande : elle n'est pas admise si l'offre n'est pas prête.","Approuvez ou refusez la demande, puis provisionnez : l'agent entre dans le registre avec l'origine marketplace, une seule fois."]],
+        ["FinOps","Rôle : comparer coûts et valeur produite par chaque agent.",["Enregistrez les résultats (succès, échec, partiel) avec la valeur en EUR et la période.","Dans l'onglet Agent, choisissez les dates : coût à l'usage, coût fixe, ROI et coût par succès.","La synthèse regroupe par référentiel ou par origine.","Les montants en USD et en EUR ne sont pas additionnés."]],
+        ["Test chatbot","Rôle : tester la connexion à ChatGPT ou Claude via Open-GenCut.",["Saisissez la clé API sur la page : elle n'est pas enregistrée.","Enregistrez l'agent de test et la ressource du fournisseur.","Écrivez un message : accès, garde-fous et supervision s'appliquent à chaque appel.","Un message non autorisé ou interdit n'atteint jamais le fournisseur."]],
+        ["SDK Python","Rôle : intégrer un agent de votre application à la plateforme, sans passer par les pages.",["Copiez le dossier sdk/ du projet et importez la classe Client.", "Connectez-vous avec un utilisateur d'intégration (profil Système).", "Avant d'utiliser une ressource, appelez check : autorisé ou refusé, avec le motif.", "Appliquez les garde-fous avec guard_input et guard_output : un message interdit lève l'exception Blocked.", "Après l'appel, enregistrez résultat, latence, jetons et coût avec record_call."],"Le SDK ne conserve pas la clé API d'un fournisseur : transmettez-la aux appels de la passerelle ou du chat."],
+        ["Infos et navigation","Rôle : informations sur le programme et liens entre les pages.",["La barre en haut mène à toutes les pages ; Registre des agents ramène à la page principale.","La page Infos indique version, auteur, copyright et licence."]]
+      ],
+      tip:"Astuce : chaque page a un bouton Aide avec la description de la page."},
+    de: { title:"Hilfe", h:{intro:"So verwenden Sie Open-GenCut"}, p:{intro:"Diese Anleitung beschreibt jedes Modul: wofür es da ist, die wichtigsten Schritte und die möglichen Ergebnisse. Öffnen Sie einen Abschnitt zum Lesen. Für Details zu jeder Maske nutzen Sie die Schaltfläche Hilfe der Seite.",alpha:"Alpha-Version für das Labor: nicht in der Produktion verwenden."},
+      out:{allowed:"Erlaubt",denied:"Verweigert",blocked:"Blockiert"},
+      s:[
+        ["Agentenregister","Zweck: eine einheitliche Liste aller Agenten, intern entwickelt, von Drittanbietern oder aus dem Marketplace.",["Klicken Sie auf Agent hinzufügen und tragen Sie Name, Herkunft, Eigentümer und Status ein.","Wenn der Agent mit Personen interagiert, geben Sie die Sprache an: sie ist Pflicht.","Filtern Sie nach Herkunft oder Status; bearbeiten oder löschen Sie aus der Zeile.","Konfigurationen (Schlüssel und Wert), Kennzahlen und Protokoll haben eigene Reiter."]],
+        ["Integrationen","Zweck: festlegen, welche Agenten Modelle, APIs, MCP-Server, Datenquellen und KI-Gateways nutzen dürfen.",["Fügen Sie die Ressourcen im Reiter Ressourcen mit dem richtigen Typ hinzu.","Geben Sie die Ressource dem Agenten in der Freigabeliste frei; ist eine menschliche Freigabe nötig, aktivieren Sie sie.","Legen Sie Tageslimit für Aufrufe und Monatslimit für Kosten im Reiter Limits fest.","Prüfen Sie einen Zugriff im Reiter Prüfen: das Zugriffsprotokoll zeigt jede Entscheidung."],"Verweigerungsgründe: nicht freigegeben, Limit erreicht, Agent nicht aktiv oder außer Betrieb, Freigabe erforderlich."],
+        ["Lebenszyklus","Zweck: Versionen, Deployment und Beförderung des Agenten, mit Bewertungen und Überwachung.",["Registrieren Sie eine Version im Reiter Versionen.","Deployen Sie in die Entwicklung, dann befördern Sie in Staging und Produktion (die Beförderung verlangt eine Bestätigung).","Die Beförderung nach Staging oder Produktion setzt eine bestandene Bewertung voraus.","Sperren, reaktivieren oder außer Betrieb nehmen: Die Außerbetriebnahme ist endgültig.","Identität: Reiter Identität, mit endgültigem Widerruf."]],
+        ["Konformität","Zweck: prüfen, ob Agenten Richtlinien und regulatorische Kontrollen einhalten.",["Legen Sie Richtlinien an (Transparenz, Bewertung vor Produktion, Klassifizierung, personenbezogene Daten).","Im Reiter Agent sehen Sie das Ergebnis jeder Richtlinie und bewerten Kontrollen mit einer Nachweisnotiz.","Unter Datensicherheit klassifizieren Sie Ressourcen und legen Verschlüsselung und zulässige personenbezogene Daten fest.","Rahmenwerke und Kontrollen sind eine Bibliothek zur Prüfung."]],
+        ["Guardrails","Zweck: Regeln zur Laufzeit auf eingehende und ausgehende Nachrichten anwenden.",["Legen Sie eine Regel an, mit Typ, Geltungsbereich und Parametern (JSON).","Typen: Maskierung oder Sperre personenbezogener Daten, verbotene Wörter, maximale Länge, Frequenz, Erkennung von Prompt-Injection.","Im Reiter Test prüfen Sie einen Text: das Ergebnis ist erlaubt, maskiert oder blockiert.","Das Protokoll zeigt Bewertungen ohne Text: nur Länge und Fingerabdruck."]],
+        ["Bewertung","Zweck: Ausführungs-Traces eines Agenten prüfen und Verstöße melden.",["Erfassen Sie eine Trace mit Ergebnis, erreichtem Ziel, Kosten und Schritten.","Definieren Sie je Typ eine Regel (Token, Latenz, Fehler, Drift, Speicher) mit Schwelle.","Die Übersicht zeigt Erfolg, Latenz, Fehler und Drift; Verstöße haben übersetzte Details.","Urteile stammen von einem externen Bewerter: Die Plattform erzeugt sie nicht."]],
+        ["Marketplace","Zweck: Agenten von Drittanbietern mit Governance finden und beziehen.",["Ein Angebot muss veröffentlicht und von der Sicherheitsprüfung genehmigt sein.","Legen Sie eine Anfrage an: Sie ist nicht zulässig, wenn das Angebot nicht bereit ist.","Genehmigen oder ablehnen Sie die Anfrage, dann stellen Sie bereit: Der Agent kommt mit Ursprung Marketplace ins Register, nur einmal."]],
+        ["FinOps","Zweck: Kosten und erzielten Wert jedes Agenten vergleichen.",["Erfassen Sie Ergebnisse (Erfolg, Fehler, teilweise) mit Wert in EUR und Zeitraum.","Im Reiter Agent wählen Sie die Daten: Nutzungskosten, Fixkosten, ROI und Kosten pro Erfolg.","Die Übersicht gruppiert nach Framework oder Herkunft.","USD- und EUR-Beträge werden nicht addiert."]],
+        ["Chatbot-Test","Zweck: die Verbindung zu ChatGPT oder Claude über Open-GenCut testen.",["Geben Sie den API-Schlüssel auf der Seite ein: Er wird nicht gespeichert.","Registrieren Sie den Test-Agenten und die Ressource des Anbieters.","Schreiben Sie eine Nachricht: Zugriff, Guardrails und Überwachung gelten für jeden Aufruf.","Eine nicht erlaubte oder verbotene Nachricht erreicht den Anbieter nie."]],
+        ["Python-SDK","Zweck: einen Agenten Ihrer Anwendung mit der Plattform verbinden, ohne über die Seiten zu gehen.",["Kopieren Sie den Ordner sdk/ des Projekts und importieren Sie die Klasse Client.", "Melden Sie sich mit einem Integrationsbenutzer (Profil System) an.", "Vor der Nutzung einer Ressource rufen Sie check auf: erlaubt oder verweigert, mit Grund.", "Wenden Sie die Guardrails mit guard_input und guard_output an: eine verbotene Nachricht löst die Ausnahme Blocked aus.", "Nach dem Aufruf erfassen Sie Ergebnis, Latenz, Token und Kosten mit record_call."],"Das SDK speichert keinen API-Schlüssel eines Anbieters: Übergeben Sie ihn den Aufrufen des Gateways oder des Chats."],
+        ["Info und Navigation","Zweck: Programminformationen und Verbindungen zwischen den Seiten.",["Die Leiste oben führt zu allen Seiten; Agentenregister führt zur Startseite zurück.","Die Seite Info zeigt Version, Autor, Copyright und Lizenz."]]
+      ],
+      tip:"Tipp: Jede Seite hat eine Schaltfläche Hilfe mit der Beschreibung der Seite."}
+  };
+  var lang = "it";
+  var $ = function (s) { return document.querySelector(s); };
+  function esc(v) { return String(v === null || v === undefined ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function t(k) { var p = k.split("."), d = T[lang], i = 0; for (; i < p.length; i++) { d = d && d[p[i]]; } return d !== undefined ? d : k; }
+  function render() {
+    var d = T[lang];
+    document.documentElement.lang = lang;
+    document.title = d.title + " - Open-GenCut";
+    document.querySelector("h1 [data-i18n='title']").textContent = d.title;
+    document.querySelector("h2[data-i18n='h.intro']").textContent = d.h.intro;
+    document.querySelector("[data-i18n='p.intro']").textContent = d.p.intro;
+    document.querySelector("[data-i18n='p.alpha']").textContent = d.p.alpha;
+    $("#sections").innerHTML = d.s.map(function (sec, i) {
+      var steps = "<ol>" + sec[2].map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>";
+      var extra = sec[3] ? '<p class="tip">' + esc(sec[3]) + "</p>" : "";
+      return "<details" + (i === 0 ? " open" : "") + "><summary>" + esc(sec[0]) + "</summary><p>" + esc(sec[1]) + "</p>" + steps + extra + "</details>";
+    }).join("") + '<p class="tip">' + esc(d.tip) + "</p>";
+  }
+  $("#lang").addEventListener("change", function (e) { lang = e.target.value; try { localStorage.setItem("gencut.lang", lang); } catch (x) {} render(); });
+  try { var s = localStorage.getItem("gencut.lang"); if (s && T[s]) lang = s; } catch (x) {}
+  $("#lang").value = lang;
+  render();
+})();
+</script>
+<script src="/nav.js?v=7"></script>
+</body>
+</html>

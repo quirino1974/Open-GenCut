@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open-GenCut - Integrazioni</title>
+<style>
+  :root { --bg:#f5f7fa; --panel:#fff; --ink:#1c2530; --muted:#5d6b7a; --accent:#1f6feb; --accent-ink:#fff; --danger:#c62828; --ok:#2e7d32; --line:#d9e0e7; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --accent-ink:#0b1220; --danger:#ef5350; --ok:#66bb6a; --line:#2a3644; }
+  }
+  :root[data-theme="dark"] { --bg:#0f141a; --panel:#18202a; --ink:#e6edf3; --muted:#9aa8b6; --accent:#4c8dff; --accent-ink:#0b1220; --danger:#ef5350; --ok:#66bb6a; --line:#2a3644; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,"Segoe UI",Roboto,sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; padding:14px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:20px; margin:0; } header h1 span { color:var(--accent); }
+  nav { display:flex; flex-wrap:wrap; gap:6px; }
+  button, .btn, select, input, textarea { font:inherit; color:var(--ink); }
+  .btn, nav button { border:1px solid var(--line); background:var(--panel); padding:7px 12px; border-radius:6px; cursor:pointer; }
+  .btn.primary, nav button.active { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .btn.danger { color:var(--danger); }
+  main { padding:16px; max-width:1100px; margin:0 auto; }
+  section.view { display:none; } section.view.active { display:block; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+  input, select, textarea { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:7px 9px; width:100%; }
+  .row input, .row select { width:auto; flex:1 1 180px; }
+  .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; }
+  .form-grid label { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; }
+  table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-size:13px; font-weight:600; }
+  .wrap { overflow-x:auto; }
+  .help { color:var(--muted); font-size:13px; }
+  .msg { padding:10px 12px; border-radius:6px; border:1px solid var(--line); margin-bottom:12px; }
+  .msg.err { color:var(--danger); border-color:var(--danger); } .msg.ok { color:var(--ok); border-color:var(--ok); }
+  .deny { color:var(--danger); font-weight:600; } .allow { color:var(--ok); font-weight:600; }
+  @media (max-width:640px) { th,td { font-size:13px; } }
+</style>
+<link rel="stylesheet" href="/theme.css?v=1">
+</head>
+<body>
+<header>
+  <h1>Open-GenCut <span>AMP</span> <span class="alpha-tag">Alfa</span> - <span data-i18n="title">Integrazioni</span></h1>
+  <span class="alpha-badge" data-i18n="alpha" style="font-size:12px;color:var(--danger);border:1px solid var(--danger);border-radius:999px;padding:1px 8px;white-space:nowrap">Versione alfa - non usare in produzione</span>
+  <div class="row" style="margin:0">
+    <select id="lang" aria-label="Language" style="width:auto">
+      <option value="it">Italiano</option><option value="en">English</option>
+      <option value="fr">Français</option><option value="de">Deutsch</option>
+    </select>
+  </div>
+</header>
+<div id="gc-nav"></div>
+<main>
+  <div id="notice"></div>
+  <nav class="row">
+    <button data-view="res" class="active" data-i18n="nav.res">Risorse</button>
+    <button data-view="allow" data-i18n="nav.allow">Allowlist</button>
+    <button data-view="appr" data-i18n="nav.appr">Approvazioni</button>
+    <button data-view="tools" data-i18n="nav.tools">Strumenti</button>
+    <button data-view="limits" data-i18n="nav.limits">Limiti</button>
+    <button data-view="check" data-i18n="nav.check">Verifica accesso</button>
+    <button data-view="log" data-i18n="nav.log">Registro accessi</button>
+    <button data-view="help" data-i18n="nav.help">Aiuto</button>
+  </nav>
+
+  <!-- RISORSE -->
+  <section class="view active" id="v-res">
+    <div class="row">
+      <select id="res-kind"></select>
+      <button class="btn primary" id="res-add" data-i18n="btn.add">Aggiungi</button>
+    </div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.name">Nome</th><th data-i18n="c.kind">Tipo</th><th data-i18n="c.endpoint">Endpoint</th><th data-i18n="c.enabled">Attiva</th><th></th>
+    </tr></thead><tbody id="res-body"></tbody></table></div>
+  </section>
+
+  <!-- ALLOWLIST -->
+  <section class="view" id="v-allow">
+    <div class="row">
+      <select id="allow-agent"></select>
+      <button class="btn primary" id="allow-add" data-i18n="btn.allow">Consenti risorsa</button>
+      <select id="allow-sens" style="width:auto"></select>
+      <select id="allow-res" style="width:auto"></select>
+    </div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.resource">Risorsa</th><th data-i18n="c.kind">Tipo</th><th></th>
+    </tr></thead><tbody id="allow-body"></tbody></table></div>
+    <div class="help" id="allow-help"></div>
+  </section>
+
+  <!-- STRUMENTI MCP -->
+  <section class="view" id="v-tools">
+    <div class="card">
+      <div class="row">
+        <div><label for="tl-res" data-i18n="tl.server">Server MCP</label><select id="tl-res"></select></div>
+        <button class="btn" id="tl-sync" data-i18n="tl.sync">Sincronizza strumenti</button>
+        <button class="btn primary" id="tl-add" data-i18n="tl.add">Aggiungi strumento</button>
+      </div>
+      <div class="wrap"><table><thead><tr>
+        <th data-i18n="tl.name">Strumento</th><th data-i18n="tl.desc">Descrizione</th><th data-i18n="tl.risk">Rischio</th><th data-i18n="tl.approval">Approvazione</th><th></th>
+      </tr></thead><tbody id="tl-body"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0" data-i18n="tl.permTitle">Permessi per strumento</h3>
+      <div class="row">
+        <div><label for="tl-agent" data-i18n="c.agent">Agente</label><select id="tl-agent"></select></div>
+        <div><label for="tl-tool" data-i18n="tl.tool">Strumento</label><select id="tl-tool"></select></div>
+        <div><label for="tl-sens" data-i18n="tl.approval">Approvazione</label><select id="tl-sens"><option value="false" data-i18n="c.no">No</option><option value="true" data-i18n="tl.yes">Sì</option></select></div>
+        <button class="btn primary" id="tl-grant" data-i18n="tl.grant">Consenti strumento</button>
+      </div>
+      <div class="wrap"><table><thead><tr><th data-i18n="tl.tool">Strumento</th><th data-i18n="c.resource">Risorsa</th><th></th></tr></thead><tbody id="tl-perm"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0" data-i18n="tl.tryTitle">Prova chiamata</h3>
+      <div class="row">
+        <div><label for="tl-try-agent" data-i18n="c.agent">Agente</label><select id="tl-try-agent"></select></div>
+        <div><label for="tl-try-tool" data-i18n="tl.tool">Strumento</label><select id="tl-try-tool"></select></div>
+      </div>
+      <label for="tl-args" data-i18n="tl.args">Argomenti (JSON)</label>
+      <textarea id="tl-args" rows="3" style="width:100%">{}</textarea>
+      <div class="row" style="margin-top:10px"><button class="btn primary" id="tl-try" data-i18n="tl.try">Esegui</button></div>
+      <div id="tl-out"></div>
+    </div>
+  </section>
+
+  <!-- APPROVAZIONI -->
+  <section class="view" id="v-appr">
+    <div class="row">
+      <select id="appr-filter"></select>
+      <button class="btn primary" id="appr-new" data-i18n="ap.req">Richiedi approvazione</button>
+    </div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.agent">Agente</th><th data-i18n="c.resource">Risorsa</th><th data-i18n="ap.status">Stato</th><th data-i18n="c.when">Quando</th><th></th>
+    </tr></thead><tbody id="appr-body"></tbody></table></div>
+  </section>
+
+  <!-- LIMITI -->
+  <section class="view" id="v-limits">
+    <div class="row">
+      <select id="limit-agent"></select>
+      <button class="btn primary" id="limit-add" data-i18n="btn.limit">Nuovo limite</button>
+      <select id="limit-res" style="width:auto"></select>
+    </div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.resource">Risorsa</th><th data-i18n="c.perDay">Max chiamate/giorno</th><th data-i18n="c.perMonth">Max costo/mese</th><th data-i18n="c.currency">Valuta</th><th></th>
+    </tr></thead><tbody id="limit-body"></tbody></table></div>
+  </section>
+
+  <!-- VERIFICA -->
+  <section class="view" id="v-check">
+    <div class="card">
+      <div class="form-grid">
+        <div><label for="chk-agent" data-i18n="c.agent">Agente</label><select id="chk-agent"></select></div>
+        <div><label for="chk-res" data-i18n="c.resource">Risorsa</label><select id="chk-res"></select></div>
+        <div><label for="chk-cost" data-i18n="c.cost">Costo dichiarato</label><input id="chk-cost" type="number" step="0.01" value="0"></div>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="chk-go" data-i18n="btn.check">Verifica e registra</button></div>
+      <div id="chk-out"></div>
+      <p class="help" data-i18n="help.check">La verifica applica nell'ordine: risorsa attiva, agente attivo, allowlist, limite giornaliero, limite mensile. Gli accessi negati vengono registrati ma non consumano budget. Il costo è dichiarato dal chiamante.</p>
+    </div>
+  </section>
+
+  <!-- REGISTRO -->
+  <section class="view" id="v-log">
+    <div class="row"><select id="log-agent"></select></div>
+    <div class="card wrap"><table><thead><tr>
+      <th data-i18n="c.when">Quando</th><th data-i18n="c.agent">Agente</th><th data-i18n="c.resource">Risorsa</th><th data-i18n="c.decision">Decisione</th><th data-i18n="c.reason">Motivo</th><th data-i18n="c.cost">Costo</th>
+    </tr></thead><tbody id="log-body"></tbody></table></div>
+  </section>
+
+  <!-- AIUTO -->
+  <section class="view" id="v-help">
+    <div class="card">
+      <h2 data-i18n="help.title">Guida in linea</h2>
+      <p data-i18n="help.body">Questa pagina controlla quali agenti possono usare modelli LLM, API, server MCP e fonti dati. Registra prima le risorse, poi consenti per ogni agente le risorse necessarie, poi imposta i limiti. La pagina Verifica simula una chiamata e la registra nel registro accessi.</p>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg" style="border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);width:min(640px,94vw);padding:0">
+  <div style="padding:18px">
+    <h2 id="dlg-title"></h2>
+    <span class="alpha-tag">Alfa</span>
+    <div id="dlg-body"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="dlg-ok" data-i18n="btn.save">Salva</button>
+      <button class="btn" id="dlg-cancel" data-i18n="btn.cancel">Annulla</button>
+    </div>
+  </div>
+</dialog>
+<script>
+(function () {
+  "use strict";
+  var I = {
+    it: { pickRes:"Scegli prima una risorsa.",reasons:{"ok": "OK", "ok_approved": "Approvazione valida", "resource_disabled": "Risorsa disattivata", "agent_not_active": "Agente non attivo", "agent_retired": "Agente dismesso", "not_allowed": "Non in allowlist", "approval_required": "Approvazione richiesta", "daily_call_limit": "Limite giornaliero raggiunto", "monthly_cost_limit": "Limite di costo mensile raggiunto"},title:"Integrazioni",alpha:"Versione alfa – non usare in produzione", back:"Registro agenti", ap:{sens:"Approvazione richiesta",req:"Richiedi approvazione",just:"Motivazione",approve:"Approva",reject:"Rifiuta",status:"Stato",all:"Tutti gli stati",pending:"In attesa",approved:"Approvata",rejected:"Rifiutata",used:"Usata"},nav:{tools:"Strumenti",appr:"Approvazioni",res:"Risorse",allow:"Allowlist",limits:"Limiti",check:"Verifica accesso",log:"Registro accessi",help:"Aiuto"},
+      btn:{add:"Aggiungi",allow:"Consenti risorsa",limit:"Nuovo limite",check:"Verifica e registra",edit:"Modifica",del:"Elimina",save:"Salva",cancel:"Annulla"},
+      c:{name:"Nome",kind:"Tipo",endpoint:"Endpoint",enabled:"Attiva",resource:"Risorsa",perDay:"Max chiamate/giorno",perMonth:"Max costo/mese",currency:"Valuta",agent:"Agente",cost:"Costo dichiarato",when:"Quando",decision:"Decisione",reason:"Motivo"},
+      kind:{ai_gateway:"Gateway AI",llm_model:"Modello LLM",api:"API",mcp_server:"Server MCP",data_source:"Fonte dati"},
+      dec:{allowed:"Consentito",denied:"Negato"}, yes:"Sì", no:"No", none:"Nessun limite", empty:"Nessun elemento.",
+      ok:"Salvato.", err:"Errore", pick:"Scegli prima un tipo di risorsa.", confirmDel:"Eliminare?", help:{title:"Guida in linea",body:"Questa pagina controlla quali agenti possono usare modelli LLM, API, server MCP e fonti dati. Registra prima le risorse, poi consenti per ogni agente le risorse necessarie, poi imposta i limiti. La pagina Verifica simula una chiamata e la registra nel registro accessi.",check:"La verifica applica nell'ordine: risorsa attiva, agente attivo, allowlist, limite giornaliero, limite mensile. Gli accessi negati vengono registrati ma non consumano budget. Il costo è dichiarato dal chiamante."} },
+    en: { pickRes:"Choose a resource first.",reasons:{"ok": "OK", "ok_approved": "Approval valid", "resource_disabled": "Resource disabled", "agent_not_active": "Agent not active", "agent_retired": "Agent retired", "not_allowed": "Not in allowlist", "approval_required": "Approval required", "daily_call_limit": "Daily call limit reached", "monthly_cost_limit": "Monthly cost limit reached"},title:"Integrations",alpha:"Alpha version – do not use in production", back:"Agent registry", ap:{sens:"Approval required",req:"Request approval",just:"Justification",approve:"Approve",reject:"Reject",status:"Status",all:"All statuses",pending:"Pending",approved:"Approved",rejected:"Rejected",used:"Used"},nav:{tools:"Tools",appr:"Approvals",res:"Resources",allow:"Allowlist",limits:"Limits",check:"Check access",log:"Access log",help:"Help"},
+      btn:{add:"Add",allow:"Allow resource",limit:"New limit",check:"Check and record",edit:"Edit",del:"Delete",save:"Save",cancel:"Cancel"},
+      c:{name:"Name",kind:"Type",endpoint:"Endpoint",enabled:"Enabled",resource:"Resource",perDay:"Max calls/day",perMonth:"Max cost/month",currency:"Currency",agent:"Agent",cost:"Declared cost",when:"When",decision:"Decision",reason:"Reason"},
+      kind:{ai_gateway:"AI gateway",llm_model:"LLM model",api:"API",mcp_server:"MCP server",data_source:"Data source"},
+      dec:{allowed:"Allowed",denied:"Denied"}, yes:"Yes", no:"No", none:"No limit", empty:"No items.",
+      ok:"Saved.", err:"Error", pick:"Choose a resource type first.", confirmDel:"Delete?", help:{title:"Online help",body:"This page controls which agents may use LLM models, APIs, MCP servers and data sources. Register the resources first, then allow each agent the resources it needs, then set the limits. The Check page simulates a call and records it in the access log.",check:"The check applies, in order: resource enabled, agent active, allowlist, daily limit, monthly limit. Denied accesses are recorded but do not consume budget. The cost is declared by the caller."} },
+    fr: { pickRes:"Choisissez d'abord une ressource.",reasons:{"ok": "OK", "ok_approved": "Approbation valide", "resource_disabled": "Ressource désactivée", "agent_not_active": "Agent non actif", "agent_retired": "Agent retiré", "not_allowed": "Pas dans la liste blanche", "approval_required": "Approbation requise", "daily_call_limit": "Limite journalière atteinte", "monthly_cost_limit": "Limite de coût mensuelle atteinte"},title:"Intégrations",alpha:"Version alpha – ne pas utiliser en production", back:"Registre des agents", ap:{sens:"Approbation requise",req:"Demander une approbation",just:"Justification",approve:"Approuver",reject:"Refuser",status:"Statut",all:"Tous les statuts",pending:"En attente",approved:"Approuvée",rejected:"Refusée",used:"Utilisée"},nav:{tools:"Outils",appr:"Approbations",res:"Ressources",allow:"Liste blanche",limits:"Limites",check:"Vérifier l'accès",log:"Journal d'accès",help:"Aide"},
+      btn:{add:"Ajouter",allow:"Autoriser la ressource",limit:"Nouvelle limite",check:"Vérifier et enregistrer",edit:"Modifier",del:"Supprimer",save:"Enregistrer",cancel:"Annuler"},
+      c:{name:"Nom",kind:"Type",endpoint:"Point d'accès",enabled:"Active",resource:"Ressource",perDay:"Max appels/jour",perMonth:"Max coût/mois",currency:"Devise",agent:"Agent",cost:"Coût déclaré",when:"Date",decision:"Décision",reason:"Motif"},
+      kind:{ai_gateway:"Passerelle IA",llm_model:"Modèle LLM",api:"API",mcp_server:"Serveur MCP",data_source:"Source de données"},
+      dec:{allowed:"Autorisé",denied:"Refusé"}, yes:"Oui", no:"Non", none:"Aucune limite", empty:"Aucun élément.",
+      ok:"Enregistré.", err:"Erreur", pick:"Choisissez d'abord un type de ressource.", confirmDel:"Supprimer ?", help:{title:"Aide en ligne",body:"Cette page contrôle quels agents peuvent utiliser des modèles LLM, des API, des serveurs MCP et des sources de données. Enregistrez d'abord les ressources, puis autorisez les ressources nécessaires à chaque agent, puis fixez les limites. La page Vérifier simule un appel et l'enregistre dans le journal.",check:"La vérification applique dans l'ordre : ressource active, agent actif, liste blanche, limite journalière, limite mensuelle. Les accès refusés sont enregistrés mais ne consomment pas le budget. Le coût est déclaré par l'appelant."} },
+    de: { pickRes:"Wählen Sie zuerst eine Ressource.",reasons:{"ok": "OK", "ok_approved": "Freigabe gültig", "resource_disabled": "Ressource deaktiviert", "agent_not_active": "Agent nicht aktiv", "agent_retired": "Agent außer Betrieb", "not_allowed": "Nicht in der Freigabeliste", "approval_required": "Freigabe erforderlich", "daily_call_limit": "Tageslimit erreicht", "monthly_cost_limit": "Monatliches Kostenlimit erreicht"},title:"Integrationen",alpha:"Alpha-Version – nicht in der Produktion verwenden", back:"Agentenregister", ap:{sens:"Freigabe erforderlich",req:"Freigabe anfordern",just:"Begründung",approve:"Genehmigen",reject:"Ablehnen",status:"Status",all:"Alle Status",pending:"Ausstehend",approved:"Genehmigt",rejected:"Abgelehnt",used:"Verwendet"},nav:{tools:"Werkzeuge",appr:"Genehmigungen",res:"Ressourcen",allow:"Freigabeliste",limits:"Grenzwerte",check:"Zugriff prüfen",log:"Zugriffsprotokoll",help:"Hilfe"},
+      btn:{add:"Hinzufügen",allow:"Ressource freigeben",limit:"Neues Limit",check:"Prüfen und erfassen",edit:"Bearbeiten",del:"Löschen",save:"Speichern",cancel:"Abbrechen"},
+      c:{name:"Name",kind:"Typ",endpoint:"Endpunkt",enabled:"Aktiv",resource:"Ressource",perDay:"Max. Aufrufe/Tag",perMonth:"Max. Kosten/Monat",currency:"Währung",agent:"Agent",cost:"Angegebene Kosten",when:"Zeitpunkt",decision:"Entscheidung",reason:"Grund"},
+      kind:{ai_gateway:"KI-Gateway",llm_model:"LLM-Modell",api:"API",mcp_server:"MCP-Server",data_source:"Datenquelle"},
+      dec:{allowed:"Erlaubt",denied:"Verweigert"}, yes:"Ja", no:"Nein", none:"Kein Limit", empty:"Keine Einträge.",
+      ok:"Gespeichert.", err:"Fehler", pick:"Wählen Sie zuerst einen Ressourcentyp.", confirmDel:"Löschen?", help:{title:"Online-Hilfe",body:"Diese Seite steuert, welche Agenten LLM-Modelle, APIs, MCP-Server und Datenquellen nutzen dürfen. Registrieren Sie zuerst die Ressourcen, geben Sie dann jedem Agenten die nötigen Ressourcen frei und setzen Sie die Limits. Die Prüfseite simuliert einen Aufruf und erfasst ihn im Protokoll.",check:"Die Prüfung wendet in dieser Reihenfolge an: Ressource aktiv, Agent aktiv, Freigabeliste, Tageslimit, Monatslimit. Verweigerte Zugriffe werden erfasst, verbrauchen aber kein Budget. Die Kosten gibt der Aufrufer an."} }
+  };
+  // Messaggi d'errore del server tradotti per lingua (fallback: prefisso Errore + testo originale).
+  var SRV = {"it": [["interaction_language è obbligatoria", "Lingua dell'interazione obbligatoria per gli agenti che interagiscono con persone"], ["interaction_language deve essere", "La lingua deve essere un tag, es. it o en-GB"], ["valore già presente", "Valore già presente (chiave duplicata)"], ["coppia agente-risorsa già presente", "Coppia agente-risorsa già presente nei limiti"], ["ultima valutazione non superata", "Ultima valutazione non superata: promozione bloccata"], ["ultima valutazione su una versione diversa", "L'ultima valutazione riguarda un'altra versione"], ["agente sospeso", "Agente sospeso: operazione non consentita"], ["agente dismesso", "Agente dismesso: operazione non consentita"], ["versione non registrata", "Versione non registrata per questo agente"], ["versione già registrata", "Versione già registrata per questo agente"], ["transizione non consentita", "Transizione di stato non consentita"], ["non è in allowlist", "La coppia non è in allowlist"], ["non è marcata come sensibile", "La coppia non richiede approvazione"], ["name è obbligatorio", "Il nome è obbligatorio"], ["key è obbligatoria", "La chiave è obbligatoria"], ["version_label è obbligatoria", "L'etichetta di versione è obbligatoria"], ["currency deve essere", "La valuta deve essere EUR o USD"], ["non trovato", "Elemento non trovato"], ["errore interno", "Errore interno del server"]], "en": [["interaction_language è obbligatoria", "Interaction language is required for agents that interact with people"], ["interaction_language deve essere", "The language must be a tag, e.g. it or en-GB"], ["valore già presente", "Value already exists (duplicate key)"], ["coppia agente-risorsa già presente", "The agent-resource pair already has a limit"], ["ultima valutazione non superata", "Latest evaluation not passed: promotion blocked"], ["ultima valutazione su una versione diversa", "The latest evaluation is for another version"], ["agente sospeso", "Agent suspended: operation not allowed"], ["agente dismesso", "Agent retired: operation not allowed"], ["versione non registrata", "Version not registered for this agent"], ["versione già registrata", "Version already registered for this agent"], ["transizione non consentita", "State transition not allowed"], ["non è in allowlist", "The pair is not in the allowlist"], ["non è marcata come sensibile", "The pair does not require approval"], ["name è obbligatorio", "Name is required"], ["key è obbligatoria", "Key is required"], ["version_label è obbligatoria", "Version label is required"], ["currency deve essere", "Currency must be EUR or USD"], ["non trovato", "Item not found"], ["errore interno", "Internal server error"]], "fr": [["interaction_language è obbligatoria", "La langue de l'interaction est obligatoire pour les agents qui interagissent avec des personnes"], ["interaction_language deve essere", "La langue doit être un code, ex. it ou en-GB"], ["valore già presente", "Valeur déjà présente (clé en double)"], ["coppia agente-risorsa già presente", "La paire agent-ressource a déjà une limite"], ["ultima valutazione non superata", "Dernière évaluation non réussie : promotion bloquée"], ["ultima valutazione su una versione diversa", "La dernière évaluation concerne une autre version"], ["agente sospeso", "Agent suspendu : opération non autorisée"], ["agente dismesso", "Agent retiré : opération non autorisée"], ["versione non registrata", "Version non enregistrée pour cet agent"], ["versione già registrata", "Version déjà enregistrée pour cet agent"], ["transizione non consentita", "Transition d'état non autorisée"], ["non è in allowlist", "La paire n'est pas dans la liste blanche"], ["non è marcata come sensibile", "La paire ne nécessite pas d'approbation"], ["name è obbligatorio", "Le nom est obligatoire"], ["key è obbligatoria", "La clé est obligatoire"], ["version_label è obbligatoria", "Le libellé de version est obligatoire"], ["currency deve essere", "La devise doit être EUR ou USD"], ["non trovato", "Élément introuvable"], ["errore interno", "Erreur interne du serveur"]], "de": [["interaction_language è obbligatoria", "Interaktionssprache ist erforderlich für Agenten, die mit Personen interagieren"], ["interaction_language deve essere", "Die Sprache muss ein Code sein, z. B. it oder en-GB"], ["valore già presente", "Wert bereits vorhanden (doppelter Schlüssel)"], ["coppia agente-risorsa già presente", "Das Agent-Ressourcen-Paar hat bereits ein Limit"], ["ultima valutazione non superata", "Letzte Bewertung nicht bestanden: Beförderung blockiert"], ["ultima valutazione su una versione diversa", "Die letzte Bewertung betrifft eine andere Version"], ["agente sospeso", "Agent gesperrt: Vorgang nicht zulässig"], ["agente dismesso", "Agent außer Betrieb: Vorgang nicht zulässig"], ["versione non registrata", "Version für diesen Agenten nicht registriert"], ["versione già registrata", "Version für diesen Agenten bereits registriert"], ["transizione non consentita", "Zustandsübergang nicht zulässig"], ["non è in allowlist", "Das Paar ist nicht in der Freigabeliste"], ["non è marcata come sensibile", "Das Paar erfordert keine Freigabe"], ["name è obbligatorio", "Name ist erforderlich"], ["key è obbligatoria", "Schlüssel ist erforderlich"], ["version_label è obbligatoria", "Versionsbezeichnung ist erforderlich"], ["currency deve essere", "Die Währung muss EUR oder USD sein"], ["non trovato", "Element nicht gefunden"], ["errore interno", "Interner Serverfehler"]]};
+  function srvMsg(m) {
+    var rows = SRV[lang] || [];
+    for (var i = 0; i < rows.length; i++) { if (String(m).indexOf(rows[i][0]) >= 0) return rows[i][1]; }
+    return (I[lang] && I[lang].err ? I[lang].err : "Error") + ": " + m;
+  }
+  function rsn(c) { var m = (I[lang] && I[lang].reasons) || {}; return m[c] || c || ""; }
+  var lang = "it", state = { res: [], agents: [] };
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return document.querySelectorAll(s); };
+  function t(k) { var p = k.split("."), d = I[lang], i = 0; for (; i < p.length; i++) { d = d && d[p[i]]; } return d !== undefined ? d : k; }
+  function esc(v) { return String(v === null || v === undefined ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  function notice(m, k) { $("#notice").innerHTML = '<div class="msg ' + (k || "ok") + '">' + esc(m) + "</div>"; }
+  function api(method, path, body) {
+    var o = { method: method, headers: { "Accept": "application/json" } };
+    if (body !== undefined) { o.headers["Content-Type"] = "application/json"; o.body = JSON.stringify(body); }
+    return fetch("/api" + path, o).then(function (r) {
+      return r.text().then(function (txt) {
+        var d = null; try { d = txt ? JSON.parse(txt) : null; } catch (e) { d = null; }
+        if (!r.ok) throw new Error(srvMsg((d && d.message) || (r.status + " " + r.statusText)));
+        return d;
+      });
+    });
+  }
+  function opts(list, valKey, labelFn, empty) {
+    return (empty !== undefined ? '<option value="">' + esc(empty) + "</option>" : "") +
+      list.map(function (x) { return '<option value="' + esc(x[valKey]) + '">' + esc(labelFn(x)) + "</option>"; }).join("");
+  }
+  function applyStatic() {
+    document.documentElement.lang = lang;
+    document.title = t("title") + " - Open-GenCut";
+    $$("[data-i18n]").forEach(function (el) {
+      var k = el.getAttribute("data-i18n");
+      el.textContent = t(k);
+    });
+    $("#lang").value = lang;
+    loadAll();
+  }
+  function loadAgents() {
+    return api("GET", "/agents").then(function (a) { state.agents = a || []; }).catch(function (e) { notice(e.message, "err"); });
+  }
+  function loadRes() {
+    var kind = $("#res-kind").value;
+    return api("GET", "/integrations/resources" + (kind ? "?kind=" + kind : "")).then(function (r) {
+      state.res = r || [];
+      $("#res-body").innerHTML = state.res.length ? state.res.map(function (x) {
+        return "<tr><td>" + esc(x.name) + "</td><td>" + esc(t("kind." + x.kind)) + "</td><td>" + esc(x.endpoint || "") +
+          "</td><td>" + (x.status === "enabled" ? t("yes") : t("no")) + '</td><td><button class="btn danger" data-del-res="' + x.id + '">' + esc(t("btn.del")) + "</button></td></tr>";
+      }).join("") : '<tr><td colspan="5">' + esc(t("empty")) + "</td></tr>";
+    }).catch(function (e) { notice(e.message, "err"); });
+  }
+  function loadAllow() {
+    var a = $("#allow-agent").value;
+    if (!a) { $("#allow-body").innerHTML = ""; return; }
+    return api("GET", "/integrations/allowlist?agent_id=" + a).then(function (rows) {
+      rows = rows || [];
+      $("#allow-body").innerHTML = rows.length ? rows.map(function (r) {
+        var res = findRes(r.resource_id);
+        return "<tr><td>" + esc(res ? res.name : r.resource_id) + "</td><td>" + esc(res ? t("kind." + res.kind) : "") + (r.requires_approval ? " · " + esc(t("ap.sens")) : "") +
+          '</td><td><button class="btn danger" data-del-allow="' + r.id + '">' + esc(t("btn.del")) + "</button></td></tr>";
+      }).join("") : '<tr><td colspan="3">' + esc(t("empty")) + "</td></tr>";
+    }).catch(function (e) { notice(e.message, "err"); });
+  }
+  function loadLimits() {
+    var a = $("#limit-agent").value;
+    if (!a) { $("#limit-body").innerHTML = ""; return; }
+    return api("GET", "/integrations/limits?agent_id=" + a).then(function (rows) {
+      rows = rows || [];
+      $("#limit-body").innerHTML = rows.length ? rows.map(function (r) {
+        var res = findRes(r.resource_id);
+        return "<tr><td>" + esc(res ? res.name : r.resource_id) + "</td><td>" + (r.max_calls_per_day == null ? t("none") : esc(r.max_calls_per_day)) +
+          "</td><td>" + (r.max_cost_per_month == null ? t("none") : esc(r.max_cost_per_month)) + "</td><td>" + esc(r.currency || "") +
+          '</td><td><button class="btn danger" data-del-limit="' + r.id + '">' + esc(t("btn.del")) + "</button></td></tr>";
+      }).join("") : '<tr><td colspan="5">' + esc(t("empty")) + "</td></tr>";
+    }).catch(function (e) { notice(e.message, "err"); });
+  }
+  function loadLog() {
+    var a = $("#log-agent").value;
+    return api("GET", "/integrations/access-log?limit=50" + (a ? "&agent_id=" + a : "")).then(function (rows) {
+      rows = rows || [];
+      $("#log-body").innerHTML = rows.length ? rows.map(function (r) {
+        var res = findRes(r.resource_id);
+        return "<tr><td>" + esc(r.at) + "</td><td>" + esc(r.agent_id) + "</td><td>" + esc(res ? res.name : r.resource_id) +
+          '</td><td class="' + (r.decision === "allowed" ? "allow" : "deny") + '">' + esc(t("dec." + r.decision)) + "</td><td>" + esc(rsn(r.reason)) +
+          "</td><td>" + esc(r.cost) + "</td></tr>";
+      }).join("") : '<tr><td colspan="6">' + esc(t("empty")) + "</td></tr>";
+    }).catch(function (e) { notice(e.message, "err"); });
+  }
+  function findRes(id) { for (var i = 0; i < state.res.length; i++) if (String(state.res[i].id) === String(id)) return state.res[i]; return null; }
+  function refreshSelects() {
+    var agentOpts = opts(state.agents, "id", function (a) { return a.name; });
+    ["#allow-agent", "#limit-agent", "#log-agent", "#chk-agent"].forEach(function (s) {
+      var prev = $(s).value; $(s).innerHTML = (s === "#log-agent" ? opts([], "id", function () { return ""; }, "—") : "") + agentOpts;
+      if (prev) $(s).value = prev;
+    });
+    var resOpts = opts(state.res, "id", function (r) { return r.name + " (" + t("kind." + r.kind) + ")"; });
+    fillToolSelects();
+    $("#allow-sens").innerHTML = '<option value="false">' + esc(t("no")) + '</option><option value="true">' + esc(t("ap.sens")) + "</option>";
+    $("#appr-filter").innerHTML = ["", "pending", "approved", "rejected", "used"].map(function (x) {
+      return '<option value="' + x + '">' + esc(x ? t("ap." + x) : t("ap.all")) + "</option>";
+    }).join("");
+    var rv = $("#chk-res").value; $("#chk-res").innerHTML = resOpts; if (rv) $("#chk-res").value = rv;
+    $("#allow-res").innerHTML = resOpts; $("#limit-res").innerHTML = resOpts;
+    $("#res-kind").innerHTML = opts(["ai_gateway", "llm_model", "api", "mcp_server", "data_source"].map(function (k) { return { v: k, l: t("kind." + k) }; }), "v", function (x) { return x.l; }, "—");
+  }
+  function loadAll() {
+    loadAgents().then(loadRes).then(function () { refreshSelects(); return Promise.all([loadAllow(), loadLimits(), loadLog()]); });
+  }
+  function view(name) {
+    $$("nav button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-view") === name); });
+    $$("section.view").forEach(function (s) { s.classList.toggle("active", s.id === "v-" + name); });
+    if (name === "allow") loadAllow();
+    if (name === "limits") loadLimits();
+    if (name === "log") loadLog();
+    if (name === "res") loadRes();
+    if (name === "appr") loadAppr();
+    if (name === "tools") { fillToolSelects(); loadToolsView(); }
+  }
+  function prompt3(label, fields) {
+    // Maschera semplice: un form costruito dai campi richiesti.
+    return fields;
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.hasAttribute("data-view")) return view(b.getAttribute("data-view"));
+    var id;
+    if ((id = b.getAttribute("data-del-res"))) return api("DELETE", "/integrations/resources/" + id).then(function () { notice(t("ok")); loadAll(); }).catch(function (x) { notice(x.message, "err"); });
+    if ((id = b.getAttribute("data-del-allow"))) return api("DELETE", "/integrations/allowlist/" + id).then(function () { notice(t("ok")); loadAllow(); }).catch(function (x) { notice(x.message, "err"); });
+    if ((id = b.getAttribute("data-del-limit"))) return api("DELETE", "/integrations/limits/" + id).then(function () { notice(t("ok")); loadLimits(); }).catch(function (x) { notice(x.message, "err"); });
+    if (b.id === "appr-new") return requestAppr();
+    var apid;
+    if ((apid = b.getAttribute("data-appr-ok"))) return decide(apid, "approve");
+    if ((apid = b.getAttribute("data-appr-no"))) return decide(apid, "reject");
+    if (b.id === "res-add") return addResource();
+    if (b.id === "allow-add") return addAllow();
+    if (b.id === "limit-add") return addLimit();
+    if (b.id === "chk-go") return check();
+    if (b.id === "dlg-ok") return dlgSave && dlgSave();
+    if (b.id === "dlg-cancel") return closeDialog();
+  });
+  // Maschera in pagina (niente window.prompt, gestibile anche dall'automazione).
+  var dlg = document.getElementById("dlg");
+  var dlgSave = null;
+  function openDialog(title, fields, onSave) {
+    $("#dlg-title").textContent = title;
+    $("#dlg-body").innerHTML = '<div class="form-grid">' + fields.map(function (f) {
+      var inp;
+      if (f.type === "select") {
+        inp = '<select id="df-' + f.id + '">' + f.options.map(function (o) {
+          return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + "</option>";
+        }).join("") + "</select>";
+      } else {
+        inp = '<input id="df-' + f.id + '" type="' + (f.type || "text") + '" step="' + (f.step || "any") + '" value="' + esc(f.value || "") + '">';
+      }
+      return "<div><label for='df-" + f.id + "'>" + esc(f.label) + "</label>" + inp + "</div>";
+    }).join("") + "</div><div id='dlg-err'></div>";
+    dlgSave = function () {
+      var v = {};
+      fields.forEach(function (f) { v[f.id] = $("#df-" + f.id).value; });
+      try { onSave(v); } catch (e) { $("#dlg-err").innerHTML = '<div class="msg err">' + esc(e.message) + "</div>"; }
+    };
+    dlg.showModal();
+  }
+  function closeDialog() { dlg.close(); }
+  function addResource() {
+    var kind = $("#res-kind").value;
+    if (!kind) return notice(t("pick"), "err");
+    openDialog(t("btn.add"), [
+      { id: "name", label: t("c.name") + " *" },
+      { id: "endpoint", label: t("c.endpoint") }
+    ], function (v) {
+      if (!v.name.trim()) throw new Error(t("err"));
+      api("POST", "/integrations/resources", { name: v.name.trim(), kind: kind, endpoint: v.endpoint, status: "enabled" })
+        .then(function () { closeDialog(); notice(t("ok")); loadAll(); })
+        .catch(function (x) { $("#dlg-err").innerHTML = '<div class="msg err">' + esc(x.message) + "</div>"; });
+    });
+  }
+  function loadAppr() {
+    var f = $("#appr-filter").value;
+    return api("GET", "/integrations/approvals" + (f ? "?status=" + f : "")).then(function (rows) {
+      rows = rows || [];
+      $("#appr-body").innerHTML = rows.length ? rows.map(function (r) {
+        var ag = state.agents.filter(function (a) { return String(a.id) === String(r.agent_id); })[0];
+        var res = findRes(r.resource_id);
+        var acts = r.status === "pending"
+          ? '<button class="btn primary" data-appr-ok="' + r.id + '">' + esc(t("ap.approve")) + '</button> <button class="btn danger" data-appr-no="' + r.id + '">' + esc(t("ap.reject")) + "</button>"
+          : "";
+        return "<tr><td>" + esc(ag ? ag.name : r.agent_id) + "</td><td>" + esc(res ? res.name : r.resource_id) + "</td><td>" +
+          esc(t("ap." + r.status)) + "</td><td>" + esc(r.created_at) + "</td><td>" + acts + "</td></tr>";
+      }).join("") : '<tr><td colspan="5">' + esc(t("empty")) + "</td></tr>";
+    }).catch(function (e) { notice(e.message, "err"); });
+  }
+  function decide(id, verb) {
+    return api("POST", "/integrations/approvals/" + id + "/" + verb, {})
+      .then(function () { notice(t("ok")); loadAppr(); })
+      .catch(function (e) { notice(e.message, "err"); });
+  }
+  function requestAppr() {
+    var a = $("#allow-agent").value, r = $("#allow-res").value;
+    if (!a || !r) return notice(t("pickRes"), "err");
+    openDialog(t("ap.req"), [{ id: "just", label: t("ap.just") }], function (v) {
+      api("POST", "/integrations/approvals", { agent_id: +a, resource_id: +r, justification: v.just })
+        .then(function () { closeDialog(); notice(t("ok")); loadAppr(); })
+        .catch(function (x) { $("#dlg-err").innerHTML = '<div class="msg err">' + esc(x.message) + "</div>"; });
+    });
+  }
+  // Strumenti MCP: testi e chiamate
+  var TL = {
+    it: { nav:"Strumenti", server:"Server MCP", sync:"Sincronizza strumenti", add:"Aggiungi strumento", name:"Strumento", desc:"Descrizione", risk:"Rischio", approval:"Approvazione", yes:"Sì", permTitle:"Permessi per strumento", tool:"Strumento", grant:"Consenti strumento", tryTitle:"Prova chiamata", args:"Argomenti (JSON)", try:"Esegui", none:"Nessuno strumento.", noServer:"Seleziona un server MCP.", denied:"Negato", allowed:"Consentito", blocked:"Bloccato", low:"Basso", medium:"Medio", high:"Alto", synced:"Sincronizzazione completata", added:"Strumento aggiunto", granted:"Permesso concesso", revoked:"Permesso revocato", result:"Risultato", reason:"Motivo", revoke:"Revoca", del:"Elimina", missing:"Compila i campi richiesti." },
+    en: { nav:"Tools", server:"MCP server", sync:"Sync tools", add:"Add tool", name:"Tool", desc:"Description", risk:"Risk", approval:"Approval", yes:"Yes", permTitle:"Permissions per tool", tool:"Tool", grant:"Allow tool", tryTitle:"Test call", args:"Arguments (JSON)", try:"Run", none:"No tools.", noServer:"Select an MCP server.", denied:"Denied", allowed:"Allowed", blocked:"Blocked", low:"Low", medium:"Medium", high:"High", synced:"Sync completed", added:"Tool added", granted:"Permission granted", revoked:"Permission revoked", result:"Result", reason:"Reason", revoke:"Revoke", del:"Delete", missing:"Fill in the required fields." },
+    fr: { nav:"Outils", server:"Serveur MCP", sync:"Synchroniser les outils", add:"Ajouter un outil", name:"Outil", desc:"Description", risk:"Risque", approval:"Approbation", yes:"Oui", permTitle:"Permissions par outil", tool:"Outil", grant:"Autoriser l'outil", tryTitle:"Essai d'appel", args:"Arguments (JSON)", try:"Exécuter", none:"Aucun outil.", noServer:"Sélectionnez un serveur MCP.", denied:"Refusé", allowed:"Autorisé", blocked:"Bloqué", low:"Faible", medium:"Moyen", high:"Élevé", synced:"Synchronisation terminée", added:"Outil ajouté", granted:"Permission accordée", revoked:"Permission retirée", result:"Résultat", reason:"Motif", revoke:"Retirer", del:"Supprimer", missing:"Remplissez les champs obligatoires." },
+    de: { nav:"Werkzeuge", server:"MCP-Server", sync:"Werkzeuge synchronisieren", add:"Werkzeug hinzufügen", name:"Werkzeug", desc:"Beschreibung", risk:"Risiko", approval:"Freigabe", yes:"Ja", permTitle:"Berechtigungen je Werkzeug", tool:"Werkzeug", grant:"Werkzeug freigeben", tryTitle:"Testaufruf", args:"Argumente (JSON)", try:"Ausführen", none:"Keine Werkzeuge.", noServer:"Wählen Sie einen MCP-Server.", denied:"Verweigert", allowed:"Erlaubt", blocked:"Blockiert", low:"Niedrig", medium:"Mittel", high:"Hoch", synced:"Synchronisierung abgeschlossen", added:"Werkzeug hinzugefügt", granted:"Berechtigung erteilt", revoked:"Berechtigung entzogen", result:"Ergebnis", reason:"Grund", revoke:"Entziehen", del:"Löschen", missing:"Füllen Sie die Pflichtfelder aus." }
+  };
+  function tl(k) { return (TL[lang] && TL[lang][k]) || TL.it[k] || k; }
+  function toolsRes() { return $("#tl-res").value; }
+  function loadToolsView() {
+    var rid = toolsRes();
+    if (!rid) { $("#tl-body").innerHTML = '<tr><td colspan="5">' + esc(tl("noServer")) + "</td></tr>"; return; }
+    api("GET", "/integrations/resources/" + rid + "/tools").then(function (rows) {
+      rows = rows || [];
+      $("#tl-body").innerHTML = rows.length ? rows.map(function (x) {
+        return "<tr><td><code>" + esc(x.name) + "</code></td><td>" + esc(x.description || "") + "</td><td>" + esc(tl(x.risk)) + "</td><td>" + (x.requires_approval ? esc(tl("yes")) : "—") +
+          '</td><td><button class="btn danger" data-tool-del="' + x.id + '">' + esc(tl("del")) + "</button></td></tr>";
+      }).join("") : '<tr><td colspan="5">' + esc(tl("none")) + "</td></tr>";
+      $("#tl-tool").innerHTML = rows.map(function (x) { return '<option value="' + x.id + '">' + esc(x.name) + "</option>"; }).join("");
+      $("#tl-try-tool").innerHTML = $("#tl-tool").innerHTML;
+    }).catch(function (e) { notice(e.message, "err"); });
+    loadToolPerms();
+  }
+  function loadToolPerms() {
+    var aid = $("#tl-agent").value; if (!aid) { $("#tl-perm").innerHTML = ""; return; }
+    api("GET", "/integrations/tool-allowlist?agent_id=" + aid).then(function (rows) {
+      rows = rows || [];
+      $("#tl-perm").innerHTML = rows.length ? rows.map(function (r) {
+        return "<tr><td>" + esc(r.tool_name || r.tool_id) + "</td><td>" + esc(r.resource_name || "") + '</td><td><button class="btn danger" data-perm-del="' + r.id + '">' + esc(tl("revoke")) + "</button></td></tr>";
+      }).join("") : '<tr><td colspan="3">' + esc(tl("none")) + "</td></tr>";
+    }).catch(function (e) { notice(e.message, "err"); });
+  }
+  function toolsRun() {
+    var aid = $("#tl-try-agent").value, tid = $("#tl-try-tool").value;
+    if (!aid || !tid) return notice(tl("missing"), "err");
+    var args; try { args = JSON.parse($("#tl-args").value || "{}"); } catch (e) { return notice(tl("missing"), "err"); }
+    api("POST", "/gateway/call", { agent_id: +aid, resource_id: +toolsRes(), tool: $("#tl-try-tool").selectedOptions[0].textContent, arguments: args }).then(function (r) {
+      var lab = r.decision === "allowed" ? tl("allowed") : r.decision === "blocked" ? tl("blocked") : tl("denied");
+      var cls = r.decision === "allowed" ? "allow" : "deny";
+      $("#tl-out").innerHTML = '<p class="' + cls + '">' + esc(lab) + (r.reason ? " - " + esc(r.reason) : "") + "</p>" +
+        (r.result !== undefined ? "<pre>" + esc(JSON.stringify(r.result, null, 2)) + "</pre>" : "");
+    }).catch(function (e) { notice(e.message, "err"); });
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var id;
+    if (b.id === "tl-sync") return api("POST", "/integrations/resources/" + toolsRes() + "/tools/sync", {}).then(function (r) { notice(tl("synced") + ": " + r.added + " + / " + r.updated + " ~"); loadToolsView(); }).catch(function (x) { notice(x.message, "err"); });
+    if (b.id === "tl-add") return openDialog(tl("add"), '<div class="form-grid"><div><label for="df-tn">' + esc(tl("name")) + ' *</label><input id="df-tn"></div><div><label for="df-td">' + esc(tl("desc")) + '</label><input id="df-td"></div><div><label for="df-tr">' + esc(tl("risk")) + '</label><select id="df-tr"><option value="low">' + esc(tl("low")) + '</option><option value="medium">' + esc(tl("medium")) + '</option><option value="high">' + esc(tl("high")) + '</option></select></div><div><label for="df-ta">' + esc(tl("approval")) + '</label><select id="df-ta"><option value="false">—</option><option value="true">' + esc(tl("yes")) + "</option></select></div></div>", t("btn.save"), function () {
+      var n = $("#df-tn").value.trim(); if (!n) return dlgErr(tl("missing"));
+      api("POST", "/integrations/resources/" + toolsRes() + "/tools", { name: n, description: $("#df-td").value, risk: $("#df-tr").value, requires_approval: $("#df-ta").value === "true" })
+        .then(function () { closeDialog(); notice(tl("added")); loadToolsView(); }).catch(function (x) { dlgErr(x.message); });
+    });
+    if ((id = b.getAttribute("data-tool-del"))) return api("DELETE", "/integrations/tools/" + id).then(function () { notice(t("ok")); loadToolsView(); }).catch(function (x) { notice(x.message, "err"); });
+    if ((id = b.getAttribute("data-perm-del"))) return api("DELETE", "/integrations/tool-allowlist/" + id).then(function () { notice(tl("revoked")); loadToolPerms(); }).catch(function (x) { notice(x.message, "err"); });
+    if (b.id === "tl-grant") {
+      var a = $("#tl-agent").value, tid = $("#tl-tool").value; if (!a || !tid) return notice(tl("missing"), "err");
+      return api("POST", "/integrations/tool-allowlist", { agent_id: +a, tool_id: +tid, requires_approval: $("#tl-sens").value === "true" }).then(function () { notice(tl("granted")); loadToolPerms(); }).catch(function (x) { notice(x.message, "err"); });
+    }
+    if (b.id === "tl-try") return toolsRun();
+  });
+  $("#tl-res").addEventListener("change", loadToolsView);
+  $("#tl-agent").addEventListener("change", loadToolPerms);
+  function fillToolSelects() {
+    var ao = agentsOptions();
+    $("#tl-agent").innerHTML = ao; $("#tl-try-agent").innerHTML = ao;
+    $("#tl-res").innerHTML = state.res.filter(function (r) { return r.kind === "mcp_server"; }).map(function (r) { return '<option value="' + r.id + '">' + esc(r.name) + "</option>"; }).join("");
+  }
+  function agentsOptions() { return state.agents.map(function (a) { return '<option value="' + a.id + '">' + esc(a.name) + "</option>"; }).join(""); }
+  function addAllow() {
+    var a = $("#allow-agent").value, r = $("#allow-res").value; if (!a || !r) return notice(t("pickRes"), "err");
+    api("POST", "/integrations/allowlist", { agent_id: +a, resource_id: +r, requires_approval: $("#allow-sens").value === "true" }).then(function () { notice(t("ok")); loadAllow(); }).catch(function (x) { notice(x.message, "err"); });
+  }
+  function addLimit() {
+    var a = $("#limit-agent").value, r = $("#limit-res").value;
+    if (!a || !r) return notice(t("pickRes"), "err");
+    openDialog(t("btn.limit"), [
+      { id: "day", label: t("c.perDay"), type: "number", step: "1" },
+      { id: "month", label: t("c.perMonth"), type: "number" },
+      { id: "cur", label: t("c.currency"), type: "select", options: [["EUR", "EUR"], ["USD", "USD"]] }
+    ], function (v) {
+      api("POST", "/integrations/limits", {
+        agent_id: +a, resource_id: +r,
+        max_calls_per_day: v.day === "" ? null : +v.day,
+        max_cost_per_month: v.month === "" ? null : +v.month,
+        currency: v.cur
+      }).then(function () { closeDialog(); notice(t("ok")); loadLimits(); })
+        .catch(function (x) { $("#dlg-err").innerHTML = '<div class="msg err">' + esc(x.message) + "</div>"; });
+    });
+  }
+  function check() {
+    var a = $("#chk-agent").value, r = $("#chk-res").value;
+    api("POST", "/integrations/check", { agent_id: +a, resource_id: +r, cost: +$("#chk-cost").value || 0 }).then(function (d) {
+      $("#chk-out").innerHTML = '<p class="' + (d.decision === "allowed" ? "allow" : "deny") + '">' + esc(t("dec." + d.decision)) + " - " + esc(rsn(d.reason)) + "</p>";
+      loadLog();
+    }).catch(function (x) { notice(x.message, "err"); });
+  }
+  $("#res-kind").addEventListener("change", loadRes);
+  ["#allow-agent", "#limit-agent"].forEach(function (s) { $(s).addEventListener("change", function () { loadAllow(); loadLimits(); }); });
+  $("#log-agent").addEventListener("change", loadLog);
+  $("#appr-filter").addEventListener("change", loadAppr);
+  $("#lang").addEventListener("change", function (e) { lang = e.target.value; try { localStorage.setItem("gencut.lang", lang); } catch (x) {} $("#notice").innerHTML = ""; applyStatic(); refreshSelects(); });
+  try { var s = localStorage.getItem("gencut.lang"); if (s && I[s]) lang = s; } catch (x) {}
+  document.title = t("title") + " - Open-GenCut";
+  applyStatic();
+})();
+</script>
+<script src="/nav.js?v=7"></script>
+</body>
+</html>

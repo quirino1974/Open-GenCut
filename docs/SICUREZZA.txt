@@ -1,0 +1,47 @@
+SICUREZZA, UTENTI E RUOLI
+----------------------------------
+
+Autore: Quirino Scaramastra
+
+Utente iniziale
+---------------
+- Utente admin, password iniziale admin, ruolo amministratore.
+- Al primo accesso il cambio della password è obbligatorio (must_change_password = true): finché non è cambiata, le API rispondono 403 password_change_required salvo login, me, logout e cambio password.
+
+Ruoli (profili)
+---------------
+- admin: tutto, compresa la gestione utenti e il reset delle password.
+- manager (responsabile conformità): crea e modifica agenti, politiche, guardrail, integrazioni, valutazioni, marketplace, FinOps; approva richieste e approvazioni; non gestisce utenti.
+- operator (operatore): crea e modifica agenti, risorse, versioni, deploy, chiamate, esiti; non approva, non cancella configurazioni globali, non gestisce utenti.
+- auditor (controllo): sola lettura su tutto, più tracciamento, registro accessi, guardrail, verifica catena di audit.
+- viewer (consultazione): sola lettura sul registro e sulle metriche.
+- integration (sistema): solo le rotte di chiamata usate dagli agenti (/api/integrations/check, /api/lifecycle/agents/{id}/calls, /api/chat/complete, /api/guardrails/evaluate), senza accesso alla GUI né alla gestione.
+
+Sessioni
+--------
+- POST /api/auth/login {username, password} -> 200 con cookie gencut_session (HttpOnly, SameSite=Strict, scadenza 8 ore) e {username, role, must_change_password}; credenziali errate 401 invalid_credentials (messaggio generico).
+- POST /api/auth/logout -> 204, invalida la sessione.
+- GET /api/auth/me -> utente corrente o 401.
+- Le password sono salvate solo come hash (bcrypt). Nessuna password in chiaro in log, audit o risposte.
+- Dopo 5 tentativi falliti in 10 minuti, il login per quell'utente è bloccato per 10 minuti (429 too_many_attempts).
+
+Password
+--------
+- POST /api/auth/change-password {old_password, new_password} -> 204. Minimo 8 caratteri, diverso dal nome utente; il cambio azzera must_change_password.
+- POST /api/users/{id}/reset-password (solo admin) -> 200 {temporary_password} (generata, mostrata una sola volta), con must_change_password = true.
+
+Gestione utenti (solo admin)
+----------------------------
+- GET /api/users, POST /api/users {username, role, password?} (senza password: generata e mostrata una volta), PUT /api/users/{id} {role, active}, DELETE /api/users/{id} (non si può cancellare se stesso né l'ultimo admin attivo: 409 invalid_state).
+
+Autorizzazione
+--------------
+- Ogni rotta /api/* richiede sessione valida, tranne login, health, auth/me. Senza sessione: 401 unauthenticated. Ruolo insufficiente: 403 forbidden.
+- Il tracciamento registra come actor lo username (non più api).
+- Le pagine HTML sono accessibili solo con sessione: senza, si va a /login.html.
+
+Limiti dichiarati
+-----------------
+- Il certificato TLS non è incluso: l'accesso avviene in chiaro sulla rete di laboratorio; in produzione serve HTTPS (reverse proxy).
+- Nessun recupero via email: il reset lo fa un admin.
+- La chiave per la chat resta nel browser solo nel campo della pagina; il backend non la salva.

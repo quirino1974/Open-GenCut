@@ -1,0 +1,258 @@
+OPEN-GENCUT - GUIDE DE L'UTILISATEUR
+------------------------------------
+
+Autore: Quirino Scaramastra
+
+Version : brouillon v0.1, 2026-11-07. Public : les personnes qui utilisent la plateforme pour enregistrer et gouverner les agents.
+Statut : brouillon ; traductions dans docs/manuali/en, fr, de.
+
+Les pages sont disponibles en quatre langues : italien, anglais, français et allemand. Choisissez la langue dans le sélecteur de la barre supérieure.
+
+Les trois pages sont :
+- Registre : /index.html, avec les sections Agents, Configurations, Indicateurs, Traçabilité et Aide.
+- Intégrations : /integrations.html, avec les sections Approbations, Ressources, Liste blanche, Limites, Vérifier l'accès, Journal d'accès et Aide.
+- Cycle de vie : /lifecycle.html, avec les sections Évaluations, Vue d'ensemble, Versions, Déploiement et promotions, Supervision et Aide.
+
+Les noms des boutons sont ceux de l'interface en français. Pour l'automatisation, l'équivalent dans l'API est indiqué entre crochets.
+
+1. Registre (point 1)
+---------------------
+
+Le registre contient les agents et leurs configurations, globales ou par agent.
+
+Agents
+
+- Dans la section Agents, le bouton Ajouter un agent ouvre le formulaire « Nouvel agent ». Le champ obligatoire est le nom ; choisissez l'origine parmi Interne, Marketplace et Tierce partie.
+- Pour modifier un agent, utilisez le bouton Modifier sur sa ligne ; pour le supprimer, Supprimer, puis Confirmer la suppression. La suppression est définitive et enregistrée dans la Traçabilité.
+- Statut : Enregistré, Actif, Suspendu, Retiré. Le statut se change depuis le cycle de vie (section 3), pas d'ici.
+- Coût mensuel et devise (EUR ou USD). Le total des indicateurs est en EUR ; les montants en USD sont affichés à part.
+- Transparence : le champ « Interagit avec des personnes » indique si l'agent interagit avec des personnes. Dans ce cas, remplissez « Langue de l'interaction » (par exemple it, en-GB).
+- Enregistrez avec Enregistrer ; annulez avec Annuler. Modifier un agent remplace tous ses champs : envoyez aussi ceux que vous ne changez pas.
+- Les agents se filtrent par la recherche sur le nom ou le propriétaire et par les menus Toutes les origines et Tous les statuts.
+
+(API : /api/agents)
+
+Configurations
+
+- Dans la section Configurations, le bouton Ajouter une configuration ouvre le formulaire « Nouvelle configuration ».
+- Une configuration a une clé unique dans tout le registre, une valeur et une portée : Globale ou Agent. Pour la portée Agent, choisissez l'agent.
+
+(API : /api/configurations)
+
+Indicateurs et Traçabilité
+
+- La section Indicateurs affiche le nombre d'agents (total et actifs), par origine et par statut, et le coût mensuel total.
+- La section Traçabilité affiche chaque modification, avec date, utilisateur, action, entité et détail. Chaque ligne est liée à la précédente par un hachage : la vérification de la chaîne se trouve à /api/audit/verify.
+
+2. Intégrations (point 2)
+-------------------------
+
+Ici vous contrôlez quels agents peuvent utiliser quelles ressources externes : modèles LLM, API, serveurs MCP et sources de données.
+
+Ressources
+
+Dans la section Ressources, le bouton Ajouter enregistre une ressource avec un type (Modèle LLM, API, Serveur MCP, Source de données), un nom et un point d'accès facultatif. Une ressource désactivée ne peut être utilisée par aucun agent. Modifiez-la avec Modifier et supprimez-la avec Supprimer.
+
+Liste blanche
+
+Dans la section Liste blanche, le bouton Autoriser la ressource donne à un agent la permission d'utiliser une ressource. Sans cette ligne, l'accès est refusé (not_allowed).
+
+Une ligne peut être marquée « Approbation requise » (sensible). Dans ce cas, chaque accès exige une approbation (section 2.4).
+
+Limites
+
+Dans la section Limites, le bouton Nouvelle limite définit, pour un couple agent-ressource :
+- le nombre maximal d'appels par jour (en UTC), champ « Max appels/jour » ;
+- le coût maximal par mois, champ « Max coût/mois », dans la devise choisie.
+
+Champ vide = pas de limite. Un accès au-delà de la limite est refusé (daily_call_limit ou monthly_cost_limit).
+
+Vérifier l'accès
+
+La section Vérifier l'accès simule une demande d'accès avec le bouton Vérifier et enregistrer. Le résultat est Autorisé ou Refusé, avec le motif. Les motifs, dans l'ordre de vérification :
+1. resource_disabled : la ressource est désactivée.
+2. agent_retired : l'agent est retiré.
+3. agent_not_active : l'agent n'est pas actif (suspendu ou enregistré).
+4. not_allowed : le couple n'est pas dans la liste blanche.
+5. approval_required : le couple est sensible et une approbation manque.
+6. daily_call_limit et monthly_cost_limit : une limite est dépassée.
+
+Un accès refusé ne consomme pas de budget. Un accès autorisé enregistre le coût déclaré.
+
+La section Journal d'accès affiche toutes les décisions, autorisées et refusées, avec leur motif.
+
+Approbations (exigence R1)
+
+Pour les couples sensibles :
+- Lorsqu'un accès est refusé avec approval_required, le système ouvre seul une demande en attente et en affiche le numéro.
+- Dans la section Approbations, choisissez Approuver ou Refuser. Une demande déjà approuvée ou refusée ne peut plus être modifiée. Depuis la même section, vous pouvez créer une demande avec Demander une approbation, en saisissant la justification.
+- Une approbation est valable pour un seul accès : après cet accès, le statut devient « Utilisée », et l'accès suivant exige une nouvelle approbation.
+
+(API : /api/integrations/allowlist, /api/integrations/limits, /api/integrations/check, /api/integrations/approvals)
+
+3. Cycle de vie (points 3 et 4)
+-------------------------------
+
+Ici vous gérez la vie d'un agent, des versions au retrait.
+
+États de l'agent
+
+- Enregistré → Actif → Suspendu (puis de nouveau Actif) : le bouton Suspendre suspend, Réactiver réactive ; c'est possible à tout moment.
+- Retiré : le bouton Retirer demande une confirmation (« Retirer l'agent ? »). Le retrait est définitif. Après le retrait, l'agent ne reçoit plus d'accès, de déploiement ni de promotion.
+
+Versions
+
+Dans la section Versions, le bouton Nouvelle version enregistre une version de l'agent (champ « Libellé de version »). Une même version ne peut pas être enregistrée deux fois.
+
+Environnements, déploiements et promotions
+
+Il existe trois environnements : Développement, Préproduction et Production. Chaque environnement a une version courante.
+- Déployer (section « Déploiement et promotions ») : met une version enregistrée dans un environnement.
+- Promouvoir : copie la version courante du Développement vers la Préproduction, et de la Préproduction vers la Production. Une confirmation est demandée (« Promouvoir la version ? »).
+- Chaque déploiement et chaque promotion est inscrit dans le registre, avec la date, la version, l'environnement de départ et la note.
+
+Un agent suspendu ou retiré ne reçoit ni déploiement ni promotion.
+
+Évaluations (exigence R3)
+
+Dans la section Évaluations, le bouton Enregistrer l'évaluation enregistre le résultat d'une version : « réussie » ou « échouée ».
+
+Avant de passer en Préproduction ou en Production, une évaluation réussie est requise pour la version à promouvoir. La règle s'applique à la dernière évaluation enregistrée :
+- si la dernière évaluation est « échouée », le passage est bloqué, même si une évaluation antérieure était réussie ;
+- si la dernière évaluation concerne une autre version, le passage est bloqué.
+
+Le Développement ne demande pas d'évaluation.
+
+Supervision
+
+La section Supervision affiche, pour un environnement et une période : appels, erreurs et taux d'erreur, latence moyenne et maximale, jetons et coût. Les appels sont enregistrés par le système qui utilise l'agent. Le bouton Actualiser recharge les données.
+
+(API : /api/lifecycle/agents/{id}, /versions, /deploy, /promote, /evaluations, /performance, /suspend, /reactivate, /retire)
+
+4. Questions fréquentes
+-----------------------
+
+Pourquoi un déploiement est-il refusé avec « agent suspendu » ?
+Un agent suspendu ne reçoit pas de nouvelle version. Réactivez-le avec Réactiver, puis réessayez.
+
+Pourquoi la promotion vers la Préproduction est-elle bloquée ?
+Il manque une évaluation réussie pour la version à promouvoir. Enregistrez une évaluation « réussie » avec Enregistrer l'évaluation, puis réessayez.
+
+J'ai retiré un agent par erreur. Puis-je le réactiver ?
+Non. Le retrait est définitif. Enregistrez un nouvel agent.
+
+Pourquoi un accès est-il refusé avec « approbation requise » alors que je l'ai déjà approuvé ?
+Une approbation est valable pour un seul accès. Après utilisation, la demande devient « Utilisée » : une nouvelle approbation est nécessaire.
+
+Le total des coûts n'inclut pas un agent.
+Les agents en USD ne s'additionnent pas à ceux en EUR sans taux de change. Ils sont affichés à part.
+
+La Traçabilité affiche « legacy » sur certaines lignes.
+Ce sont des lignes écrites avant l'introduction de la chaîne de hachage. Elles ne peuvent pas être vérifiées, mais elles sont conservées.
+
+5. Limites connues
+------------------
+
+- Il n'existe pas de connexion par utilisateur et mot de passe : toute personne qui utilise la page est considérée comme autorisée. Utilisez-la uniquement sur un réseau contrôlé.
+- Le coût d'un appel est celui déclaré par celui qui l'envoie.
+- Les approbations n'expirent pas.
+
+6. Pages supplémentaires (points 4 à 8 et identité)
+---------------------------------------------------
+
+Toutes les nouvelles pages sont marquées Version alfa - non usare in produzione (« version alpha, ne pas utiliser en production ») : le titre en haut le rappelle. Elles ont le même sélecteur de langue et le même lien « Registre des agents ».
+
+- Conformité : /compliance.html, avec les sections Vue d'ensemble, Politiques, Agent, Sécurité des données, Contrôles et Aide.
+- Garde-fous : /guardrails.html, avec les sections Règles, Essai, Journal, Synthèse et Aide.
+- Évaluation : /evaluation.html, avec les sections Traces, Synthèse, Règles, Jugements et Aide.
+- Marketplace : /marketplace.html, avec les sections Offres, Demandes et Aide.
+- FinOps : /finops.html, avec les sections Agent, Synthèse, Enregistrer un résultat et Aide.
+- Identité : l'onglet « Identité » de la page Cycle de vie.
+
+6.1 Conformité (point 4)
+
+- Passerelles IA : ce sont des ressources de type « Passerelle IA » (valeur ai_gateway), enregistrables depuis le menu du type de ressource dans la page Intégrations.
+- Sécurité des données : pour chaque ressource, on définit la classification (Public, Interne, Confidentiel, Restreint), le chiffrement au repos et en transit, l'autorisation des données personnelles et la conservation en jours. Sans fiche, les valeurs par défaut s'appliquent (Interne, pas de chiffrement, pas de données personnelles).
+- Politiques : le bouton Ajouter (fenêtre « Nouvelle politique ») crée une règle parmi quatre types : transparence requise, évaluation avant production, classification maximale, approbation pour les données personnelles. Le paramètre est au format JSON. Dans l'onglet Agent, on voit, pour chaque politique active, si l'agent la respecte et le motif.
+- Contrôles : la section Contrôles présente la bibliothèque des référentiels (par exemple RGPD, AI Act, ISO 27001, ISO 42001) avec leurs contrôles. Les boutons Nouveau référentiel et Nouveau contrôle les ajoutent. Les données initiales doivent être validées par le responsable conformité.
+- Évaluation des contrôles : pour chaque agent, chaque contrôle a un résultat : Conforme, Non conforme, Non évalué, Non applicable, avec une note de preuve.
+- Vue d'ensemble : pour chaque référentiel, elle affiche les contrôles, le pourcentage d'agents conformes et les politiques en échec.
+
+Limite déclarée : les titres des contrôles sont des synthèses à valider ; ce ne sont pas le texte réglementaire.
+
+6.2 Garde-fous (point 5)
+
+- Règles : le bouton Ajouter crée un garde-fou avec l'un des types : masquage des données personnelles (pii_mask), blocage des données personnelles (pii_block), blocage par mots-clés, longueur maximale, limite de fréquence par minute, injection de prompt (prompt_injection). Portée : Globale, Agent ou Ressource.
+- Essai : le bouton Évaluer applique les règles actives à un texte de test, en entrée ou en sortie, et affiche le résultat (Autorisé, Masqué, Bloqué) avec les violations.
+- Journal : chaque évaluation est enregistrée avec son résultat, ses violations, la longueur du texte et l'empreinte SHA-256. Le journal ne contient pas le texte.
+- Synthèse : compteurs par résultat et par type, sur les 24 dernières heures.
+
+Un blocage l'emporte sur un masquage. Avec le résultat Bloqué, le texte renvoyé est vide. Les données personnelles reconnues sont : e-mail, numéro de téléphone, code fiscal italien, IBAN (vérifié par le contrôle mod 97), numéro de carte (vérifié par l'algorithme de Luhn).
+
+Limite déclarée : la détection repose sur des règles et des expressions régulières, pas sur des modèles d'intelligence artificielle. Elle peut se tromper dans les deux sens : à considérer comme un premier filtre.
+
+6.3 Évaluation (point 6)
+
+- Traces : le bouton Enregistrer une trace enregistre une exécution : identifiant de trace, résultat (succès, échec, partiel), objectif atteint, coût et étapes. Chaque étape a un type (llm, tool, reasoning, memory), un nom, des jetons, une latence et un résultat. Le texte des étapes n'est jamais enregistré.
+- Règles : le bouton Nouvelle règle crée une règle par type, une seule par type : jetons maximum par trace, latence maximale, taux d'erreur maximal, dérive maximale, âge maximal de la mémoire en jours. Une règle génère des violations lorsqu'une trace la dépasse.
+- Synthèse : taux de succès, taux d'objectif, latence moyenne, taux d'erreur, nombre de violations, score moyen, indication de dérive et étapes de mémoire obsolètes.
+- Jugements : le bouton Enregistrer un jugement enregistre une note de 1 à 5 avec le nom du juge (valeur par défaut « manual »). Les jugements viennent d'un juge externe, personne ou outil : la plateforme ne les produit pas.
+
+Limites déclarées : pas de jugement automatique par un modèle ; pas d'ingestion au format OTLP. La dérive compare les 10 dernières traces aux 10 précédentes.
+
+6.4 Marketplace (point 7)
+
+- Offres : le bouton Ajouter publie un agent de tiers : fournisseur, nom, version, framework, modèle de prix (gratuit, abonnement, à l'usage), prix, devise, certification, examen de sécurité (En attente, Approuvé, Refusé) et statut (Publiée, Masquée). On modifie avec Modifier, on supprime avec Supprimer.
+- Demandes : le bouton Demander demande l'adoption d'une offre. Elle n'est acceptée que si l'offre est publiée et que son examen est approuvé.
+- Décision : Approuver ou Refuser une demande en attente. Provisionner crée l'agent dans le registre avec l'origine marketplace, le statut enregistré, le fournisseur, la version et le framework de l'offre. Une demande ne se provisionne qu'une seule fois.
+
+6.5 FinOps (point 8)
+
+- Enregistrer un résultat : le bouton Enregistrer note un résultat (succès, échec, partiel) avec la valeur en EUR et la période.
+- Agent : avec une plage de dates, il affiche le coût à l'usage, le coût fixe, le coût total, la valeur, le ROI, le coût par succès et le nombre de résultats.
+- Synthèse : totaux par framework ou par origine sur la plage de dates.
+
+Conventions : ROI = (valeur - coût) / coût, vide si le coût est nul. Coût par succès = coût total / succès, vide sans succès. Les montants en USD ne sont pas additionnés aux montants en EUR : le coût fixe d'un agent en USD est affiché à part.
+
+6.6 Identité par agent
+
+Dans l'onglet Identité de la page Cycle de vie, on voit l'identifiant de l'agent (un UUID attribué à la création) et son état. Le bouton Révoquer l'identité demande une confirmation : la révocation est définitive et l'agent ne peut plus accéder à aucune ressource. Après la révocation, le bouton est désactivé.
+
+La suspension bloque l'agent immédiatement ; la réactivation doit être demandée explicitement. Ce sont deux mécanismes différents : la révocation d'une identité ne s'annule pas.
+
+7. Accès et sécurité
+--------------------
+
+- Connexion : sur la page de connexion, saisissez le nom d'utilisateur et le mot de passe. Après cinq échecs en dix minutes, la connexion de cet utilisateur est bloquée pendant un certain temps ; le message ne révèle pas si le nom existe.
+- Première connexion et changement de mot de passe : si le mot de passe est temporaire, la plateforme mène à la page Compte et demande de le changer avant tout le reste. Le nouveau mot de passe doit comporter au moins 8 caractères et au plus 72, et ne peut pas être identique au nom d'utilisateur.
+- Profil : la page Compte permet de changer le mot de passe. Depuis le nom d'utilisateur en bas de la barre, on atteint la page Compte, d'où l'on peut se déconnecter.
+- Rôles : administrateur (tout, y compris la gestion des utilisateurs) ; responsable conformité (crée, modifie, approuve) ; opérateur (crée et modifie, sans approuver) ; auditeur (lecture seule avec piste d'audit et journal des accès) ; consultation (lecture seule sur le registre et les métriques) ; système d'intégration (uniquement les appels des agents, sans pages).
+- Utilisateurs (administrateur uniquement) : la page Utilisateurs crée les utilisateurs, change le rôle, supprime un utilisateur (ni vous-même, ni le dernier administrateur actif) et génère un mot de passe temporaire pour la réinitialisation. Le mot de passe temporaire n'est affiché qu'une fois : remettez-le à l'utilisateur, qui le change à sa première connexion.
+- Limites : pas de récupération par e-mail (la réinitialisation est faite par un administrateur) ; HTTPS avec le certificat de laboratoire (voir le manuel opérationnel).
+
+8. Chat avec les modèles
+------------------------
+
+- La page Chat dialogue avec un modèle OpenAI ou Anthropic. Choisissez le fournisseur, le modèle, l'agent et la ressource du fournisseur, puis saisissez la clé API.
+- La clé API reste dans le champ de la page, en mémoire : la plateforme ne la stocke pas, ne la journalise pas et ne l'affiche jamais. Quand vous fermez la page, il faut la saisir de nouveau.
+- Chaque réponse affiche la décision (autorisé, refusé, bloqué), les jetons et la latence. La plateforme ne stocke pas le texte des messages.
+- Si un garde-fou bloque le message ou la réponse, la décision affichée est « bloqué ».
+
+9. Serveurs MCP et outils
+-------------------------
+
+- Sur la page Intégrations, un serveur MCP est une ressource du type serveur MCP, avec son adresse. Les outils du serveur s'enregistrent à la main ou par synchronisation, qui lit la liste auprès du serveur.
+- L'autorisation d'un outil est accordée à un agent dans la liste blanche des outils. Sans autorisation, l'appel est refusé (tool_not_allowed).
+- Dans l'onglet Essai d'appel, choisissez agent, ressource et outil, saisissez les arguments en JSON, puis consultez la décision et le résultat.
+
+10. Agents inactifs
+-------------------
+
+Dans le registre, la colonne Activité indique si l'agent est actif, sans activité ou jamais actif, avec la date du dernier événement. Un agent actif sans appel, décision d'accès ni trace pendant les 30 derniers jours est signalé comme inactif.
+
+11. Navigation et aide en ligne
+-------------------------------
+
+- La barre du haut est la même sur toutes les pages : on passe d'une section à l'autre sans revenir au registre.
+- La page Aide explique les sections ; la page Infos décrit le projet.
+- La langue choisie est conservée dans le navigateur. Certaines pages (par exemple chat, garde-fous et évaluation) ont le sélecteur de langue.

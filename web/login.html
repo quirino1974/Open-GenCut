@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open-GenCut - Accesso</title>
+<style>
+  :root { --bg:#f3f6fb; --panel:#fff; --ink:#15202e; --muted:#55657a; --accent:#2563eb; --accent-2:#7c3aed; --line:#dde4ee; --danger:#b91c1c; --ok:#15803d; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0b1220; --panel:#111a2b; --ink:#e8eef8; --muted:#9fb0c6; --accent:#60a5fa; --accent-2:#a78bfa; --line:#22304a; --danger:#f87171; --ok:#4ade80; } }
+  :root[data-theme="dark"] { --bg:#0b1220; --panel:#111a2b; --ink:#e8eef8; --muted:#9fb0c6; --accent:#60a5fa; --accent-2:#a78bfa; --line:#22304a; --danger:#f87171; --ok:#4ade80; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(120deg,#0f1f3d 0%,#1d3a7a 55%,#3b2a8a 100%); font:16px/1.5 system-ui,"Segoe UI",Roboto,sans-serif; color:var(--ink); padding:16px; }
+  .box { width:min(420px,100%); background:var(--panel); border-radius:16px; padding:28px; box-shadow:0 20px 50px rgba(0,0,0,.3); }
+  h1 { font-size:1.5rem; margin:0 0 4px; font-weight:700; } h1 span { color:#93c5fd; }
+  .sub { color:var(--muted); margin:0 0 20px; font-size:.95rem; }
+  label { display:block; font-size:.85rem; font-weight:600; color:var(--muted); margin:14px 0 6px; }
+  input, select { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px; font:inherit; color:var(--ink); background:var(--panel); }
+  input:focus { outline:3px solid rgba(37,99,235,.3); border-color:var(--accent); }
+  button { width:100%; margin-top:20px; padding:12px; border:none; border-radius:10px; background:linear-gradient(120deg,var(--accent),var(--accent-2)); color:#fff; font:inherit; font-weight:700; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:wait; }
+  .msg { margin-top:14px; padding:10px 12px; border-radius:10px; font-weight:600; border:1px solid var(--line); }
+  .msg.err { color:var(--danger); border-color:var(--danger); } .msg.ok { color:var(--ok); border-color:var(--ok); }
+  .hint { margin-top:16px; font-size:.85rem; color:var(--muted); }
+  .lang { position:absolute; top:12px; right:12px; }
+  .lang select { width:auto; padding:6px 10px; background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.4); border-radius:8px; }
+  .lang option { color:#15202e; }
+  .hidden { display:none; }
+</style>
+<link rel="stylesheet" href="/theme.css?v=1">
+</head>
+<body>
+<div class="lang"><select id="lang" aria-label="Language">
+  <option value="it">Italiano</option><option value="en">English</option><option value="fr">Français</option><option value="de">Deutsch</option>
+</select></div>
+<div class="box">
+  <h1>Open-GenCut <span>AMP</span></h1>
+  <p class="sub" data-i18n="sub">Accesso alla piattaforma</p>
+  <div id="notice"></div>
+
+  <form id="loginForm">
+    <label for="user" data-i18n="user">Utente</label>
+    <input id="user" name="username" autocomplete="username" required>
+    <label for="pass" data-i18n="pass">Password</label>
+    <input id="pass" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit" id="go" data-i18n="login">Accedi</button>
+  </form>
+
+  <p id="mustchange" class="msg ok hidden" data-i18n="mustChange">Al primo accesso devi scegliere una nuova password.</p>
+  <form id="changeForm" class="hidden">
+    <label for="old" data-i18n="oldPass">Password attuale</label>
+    <input id="old" type="password" autocomplete="current-password">
+    <label for="new1" data-i18n="newPass">Nuova password (minimo 8 caratteri)</label>
+    <input id="new1" type="password" autocomplete="new-password" minlength="8">
+    <label for="new2" data-i18n="newPass2">Ripeti la nuova password</label>
+    <input id="new2" type="password" autocomplete="new-password" minlength="8">
+    <button type="submit" id="save" data-i18n="save">Salva e continua</button>
+  </form>
+
+  <p class="hint" data-i18n="hint">Accesso iniziale: utente admin. Al primo accesso la password va cambiata.</p>
+</div>
+<script>
+(function () {
+  "use strict";
+  var I = {
+    it: { title:"Accesso", sub:"Accesso alla piattaforma", user:"Utente", pass:"Password", login:"Accedi", mustChange:"Al primo accesso devi scegliere una nuova password.", oldPass:"Password attuale", newPass:"Nuova password (minimo 8 caratteri)", newPass2:"Ripeti la nuova password", save:"Salva e continua", hint:"Accesso iniziale: utente admin. Al primo accesso la password va cambiata.", err:"Credenziali non valide.", mismatch:"Le due password non coincidono.", saved:"Password aggiornata.", net:"Impossibile contattare il server.", tooMany:"Troppi tentativi: riprova più tardi." },
+    en: { title:"Sign in", sub:"Sign in to the platform", user:"User", pass:"Password", login:"Sign in", mustChange:"At first sign-in you must choose a new password.", oldPass:"Current password", newPass:"New password (at least 8 characters)", newPass2:"Repeat the new password", save:"Save and continue", hint:"Initial sign-in: user admin. At first sign-in the password must be changed.", err:"Invalid credentials.", mismatch:"The two passwords do not match.", saved:"Password updated.", net:"Cannot reach the server.", tooMany:"Too many attempts: try again later." },
+    fr: { title:"Connexion", sub:"Connexion à la plateforme", user:"Utilisateur", pass:"Mot de passe", login:"Se connecter", mustChange:"À la première connexion, vous devez choisir un nouveau mot de passe.", oldPass:"Mot de passe actuel", newPass:"Nouveau mot de passe (8 caractères minimum)", newPass2:"Répétez le nouveau mot de passe", save:"Enregistrer et continuer", hint:"Connexion initiale : utilisateur admin. À la première connexion, le mot de passe doit être changé.", err:"Identifiants non valides.", mismatch:"Les deux mots de passe ne correspondent pas.", saved:"Mot de passe mis à jour.", net:"Impossible de joindre le serveur.", tooMany:"Trop de tentatives : réessayez plus tard." },
+    de: { title:"Anmeldung", sub:"Anmeldung an der Plattform", user:"Benutzer", pass:"Passwort", login:"Anmelden", mustChange:"Bei der ersten Anmeldung müssen Sie ein neues Passwort wählen.", oldPass:"Aktuelles Passwort", newPass:"Neues Passwort (mindestens 8 Zeichen)", newPass2:"Neues Passwort wiederholen", save:"Speichern und weiter", hint:"Erste Anmeldung: Benutzer admin. Bei der ersten Anmeldung muss das Passwort geändert werden.", err:"Ungültige Anmeldedaten.", mismatch:"Die beiden Passwörter stimmen nicht überein.", saved:"Passwort aktualisiert.", net:"Der Server ist nicht erreichbar.", tooMany:"Zu viele Versuche: Bitte später erneut versuchen." }
+  };
+  var lang = "it";
+  var $ = function (s) { return document.querySelector(s); };
+  function t(k) { return (I[lang] && I[lang][k]) || I.it[k] || k; }
+  function notice(m, k) { $("#notice").innerHTML = '<div class="msg ' + (k || "err") + '">' + m.replace(/[&<>]/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]; }) + "</div>"; }
+  function next() {
+    var n = new URLSearchParams(location.search).get("next");
+    return n && n.charAt(0) === "/" && n.indexOf("//") !== 1 ? n : "/";
+  }
+  function apply() {
+    document.documentElement.lang = lang;
+    document.title = t("title") + " - Open-GenCut";
+    document.querySelectorAll("[data-i18n]").forEach(function (el) { el.textContent = t(el.getAttribute("data-i18n")); });
+  }
+  function post(path, body) {
+    return fetch("/api" + path, { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(body || {}), credentials: "same-origin" })
+      .then(function (r) { return r.text().then(function (txt) { var d = null; try { d = txt ? JSON.parse(txt) : null; } catch (e) {} return { status: r.status, body: d }; }); });
+  }
+  $("#loginForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    $("#notice").innerHTML = "";
+    $("#go").disabled = true;
+    post("/auth/login", { username: $("#user").value.trim(), password: $("#pass").value }).then(function (r) {
+      $("#go").disabled = false;
+      if (r.status === 200) {
+        if (r.body && r.body.must_change_password) {
+          $("#loginForm").classList.add("hidden"); $("#changeForm").classList.remove("hidden"); $("#mustchange").classList.remove("hidden"); $("#old").value = $("#pass").value;
+        } else { location.href = next(); }
+      } else if (r.status === 429) { notice(t("tooMany")); }
+      else { notice(t("err")); }
+    }).catch(function () { $("#go").disabled = false; notice(t("net")); });
+  });
+  $("#changeForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    $("#notice").innerHTML = "";
+    if ($("#new1").value !== $("#new2").value) { notice(t("mismatch")); return; }
+    $("#save").disabled = true;
+    post("/auth/change-password", { old_password: $("#old").value, new_password: $("#new1").value }).then(function (r) {
+      $("#save").disabled = false;
+      if (r.status === 204 || r.status === 200) { notice(t("saved"), "ok"); setTimeout(function () { location.href = next(); }, 600); }
+      else { notice((r.body && r.body.message) || t("err")); }
+    }).catch(function () { $("#save").disabled = false; notice(t("net")); });
+  });
+  $("#lang").addEventListener("change", function (e) { lang = e.target.value; try { localStorage.setItem("gencut.lang", lang); } catch (x) {} apply(); });
+  try { var s = localStorage.getItem("gencut.lang"); if (s && I[s]) lang = s; } catch (x) {}
+  $("#lang").value = lang;
+  apply();
+})();
+</script>
+</body>
+</html>
