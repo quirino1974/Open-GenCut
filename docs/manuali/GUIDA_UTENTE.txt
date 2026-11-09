@@ -2,6 +2,7 @@ OPEN-GENCUT - GUIDA UTENTE
 --------------------------
 
 Autore: Quirino Scaramastra
+Progetto a scopo didattico.
 
 Versione: bozza v0.1, 2026-11-07. Destinatari: chi usa la piattaforma per registrare e governare gli agenti.
 Stato: bozza; traduzioni in docs/manuali/en, fr, de.

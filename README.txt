@@ -2,6 +2,7 @@ OPEN-GENCUT - PIATTAFORMA AMP PER LA GOVERNANCE DEGLI AGENTI IA
 ----------------------------------------------------------------
 
 Autore: Quirino Scaramastra
+Progetto a scopo didattico.
 
 Versione alfa per il laboratorio. Non usare in produzione.
 

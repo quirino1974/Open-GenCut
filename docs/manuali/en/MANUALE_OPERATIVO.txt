@@ -2,6 +2,7 @@ OPEN-GENCUT - OPERATIONS MANUAL
 -------------------------------
 
 Autore: Quirino Scaramastra
+Project for educational purposes only.
 
 Version: draft v0.1, 2026-11-07. Audience: people who install, start and maintain the platform.
 Status: draft to be reviewed.

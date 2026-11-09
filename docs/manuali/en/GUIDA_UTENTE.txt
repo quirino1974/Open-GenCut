@@ -2,6 +2,7 @@ OPEN-GENCUT - USER GUIDE
 ------------------------
 
 Autore: Quirino Scaramastra
+Project for educational purposes only.
 
 Version: draft v0.1, 2026-11-07. Audience: people who use the platform to register and govern agents.
 Status: draft; translations in docs/manuali/en, fr, de.
