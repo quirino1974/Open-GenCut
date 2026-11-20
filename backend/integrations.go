@@ -12,6 +12,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -357,6 +358,10 @@ func decodeResourceInput(w http.ResponseWriter, r *http.Request) (ResourceInput,
 	}
 	if runeLen(in.Endpoint) > 300 {
 		writeValidation(w, "endpoint supera 300 caratteri")
+		return in, false
+	}
+	if err := checkEndpointPolicy(in.Endpoint); err != nil {
+		writeValidation(w, "endpoint non consentito: "+err.Error())
 		return in, false
 	}
 	if runeLen(in.Description) > 1000 {
@@ -894,15 +899,19 @@ func floatParam(v *float64) any {
 	return *v
 }
 
+// costUnits converte un importo in decimillesimi interi, la precisione della colonna DECIMAL(18,4).
+func costUnits(c float64) int64 { return int64(math.Round(c * 10000)) }
+
 // limitDecision applica i limiti di chiamate al giorno e di costo al mese alla coppia agente-risorsa.
 // Va chiamata dentro la transazione di decide. Restituisce "allowed" se nessun limite è superato.
 func limitDecision(ctx context.Context, tx *sql.Tx, agentID, resourceID int, cost float64) (string, string) {
 	// Blocco sulla riga del limite: serializza i controlli sulla stessa coppia.
-	var maxCalls sql.NullInt64
-	var maxCost sql.NullFloat64
+	// I costi sono DECIMAL(18,4): si confrontano in decimillesimi interi, non in virgola mobile
+	// (0,10 + 0,10 + 0,10 in virgola mobile supera 0,30).
+	var maxCalls, maxCostUnits sql.NullInt64
 	err := tx.QueryRowContext(ctx,
-		`SELECT max_calls_per_day, max_cost_per_month FROM dbo.access_limit WITH (UPDLOCK, HOLDLOCK)
-		  WHERE agent_id = @p1 AND resource_id = @p2`, agentID, resourceID).Scan(&maxCalls, &maxCost)
+		`SELECT max_calls_per_day, CAST(max_cost_per_month * 10000 AS BIGINT) FROM dbo.access_limit WITH (UPDLOCK, HOLDLOCK)
+		  WHERE agent_id = @p1 AND resource_id = @p2`, agentID, resourceID).Scan(&maxCalls, &maxCostUnits)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return "denied", "check_error"
 	}
@@ -920,16 +929,16 @@ func limitDecision(ctx context.Context, tx *sql.Tx, agentID, resourceID int, cos
 		}
 	}
 
-	if maxCost.Valid {
-		var spent float64
+	if maxCostUnits.Valid {
+		var spent int64
 		if err := tx.QueryRowContext(ctx,
-			`SELECT CAST(ISNULL(SUM(cost), 0) AS FLOAT) FROM dbo.access_event
+			`SELECT CAST(ISNULL(SUM(cost), 0) * 10000 AS BIGINT) FROM dbo.access_event
 			  WHERE agent_id = @p1 AND resource_id = @p2 AND decision = 'allowed'
 			    AND at >= DATE_FORMAT(UTC_TIMESTAMP(3), '%Y-%m-01')`,
 			agentID, resourceID).Scan(&spent); err != nil {
 			return "denied", "check_error"
 		}
-		if spent+cost > maxCost.Float64 {
+		if spent+costUnits(cost) > maxCostUnits.Int64 {
 			return "denied", "monthly_cost_limit"
 		}
 	}

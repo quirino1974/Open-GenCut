@@ -345,7 +345,7 @@ Ogni rotta /api richiede una sessione, tranne POST /api/auth/login e GET /api/he
 Le pagine HTML senza sessione vanno a /login.html (302). La pagina /login.html è pubblica.
 
 Metodo  Percorso  Note
-POST  /api/auth/login  {username, password}; 200 {username, role, must_change_password} e cookie gencut_session (HttpOnly, SameSite=Strict, 8 ore); 401 invalid_credentials (messaggio generico); 429 too_many_attempts dopo 5 tentativi falliti in 10 minuti per lo stesso utente
+POST  /api/auth/login  {username, password}; 200 {username, role, must_change_password} e cookie gencut_session (HttpOnly, SameSite=Strict, 8 ore); 401 invalid_credentials (messaggio generico); 429 too_many_attempts dopo 5 tentativi falliti in 10 minuti per la stessa coppia utente + indirizzo, o dopo 100 tentativi falliti in 10 minuti da uno stesso indirizzo (vedi docs/SICUREZZA.txt)
 POST  /api/auth/logout  204; invalida la sessione
 GET  /api/auth/me  utente corrente, o 401
 POST  /api/auth/change-password  {old_password, new_password}; 204; minimo 8 caratteri, massimo 72 byte, diversa dal nome utente
@@ -412,6 +412,8 @@ Approvazioni: se la coppia o lo strumento richiedono approvazione, la richiesta 
 
 Registro: ogni chiamata registra l'esito in access_event e, se ha raggiunto il server, in usage_log. Argomenti e risultato non vengono salvati: solo lunghezza e SHA-256 in gateway_event.
 
+Rete in uscita: il gateway e la sincronizzazione MCP si collegano solo a indirizzi consentiti. Sono sempre bloccati gli indirizzi locali al collegamento (169.254.0.0/16, fe80::/10, comprese le interfacce dei metadati dei cloud), non specificati, multicast e broadcast. Loopback, reti private e 100.64.0.0/10 sono bloccati salvo GATEWAY_ALLOW_PRIVATE_NETWORKS=true (nel laboratorio è impostata a true, perché i server MCP stanno su una rete interna). Il controllo avviene alla connessione, sull'indirizzo reale: vale anche per i nomi host e per i reindirizzamenti (massimo 3). Un indirizzo numerico non consentito si rifiuta già alla registrazione della risorsa (400 validation_error); un nome che risolve a un indirizzo bloccato dà 502 provider_error.
+
 Limiti dichiarati:
 - trasporto solo HTTP con JSON-RPC (tools/list e tools/call); niente stdio, risorse o prompt MCP;
 - gli strumenti rimossi dal server restano registrati dopo la sincronizzazione (vanno cancellati a mano);
@@ -439,7 +441,7 @@ Mappatura:
 - obiettivo e costo: gencut.goal_met (booleano) e gencut.cost sullo span radice;
 - ambiente: deployment.environment nelle risorse, se valido.
 
-Risposta 200: {traces_created, traces_skipped, spans}. Le tracce già presenti (stesso trace_id per l'agente) sono saltate. Errori: 400 per formato o span senza traceId; 404 per agente inesistente.
+Risposta 200: {traces_created, traces_skipped, spans}. Le tracce già presenti (stesso trace_id per l'agente) sono saltate. Errori: 400 per formato, per span senza traceId o con traceId che non sia una stringa esadecimale di 32 caratteri; 404 per agente inesistente. I valori numerici fuori dai limiti (token negativi o oltre il massimo di un intero a 32 bit, tempi negativi o invertiti) vengono ridotti ai limiti consentiti.
 
 Gli attributi testuali (prompt, risposte, valori) non vengono letti né salvati. I nomi degli span vengono salvati come identificatori (massimo 150 caratteri).
 Limiti dichiarati: solo JSON, non protobuf; nessun gRPC o HTTP OTLP binario.

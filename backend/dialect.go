@@ -368,7 +368,7 @@ func dbErrNumber(err error) int32 {
 	switch me.Number {
 	case 1062: // ER_DUP_ENTRY
 		return 2627
-	case 1451, 1452, 1048, 1364, 1366, 1406, 3819, 4025: // FK, NOT NULL, CHECK
+	case 1451, 1452, 1048, 1364, 1366, 1406, 3819, 4025, 1264, 1265, 1292, 1411: // FK, NOT NULL, CHECK, valore fuori intervallo o non valido
 		return 547
 	}
 	return int32(me.Number)

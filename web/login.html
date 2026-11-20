@@ -71,9 +71,16 @@
   var $ = function (s) { return document.querySelector(s); };
   function t(k) { return (I[lang] && I[lang][k]) || I.it[k] || k; }
   function notice(m, k) { $("#notice").innerHTML = '<div class="msg ' + (k || "err") + '">' + m.replace(/[&<>]/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]; }) + "</div>"; }
+  // Destinazione dopo l'accesso: solo percorsi interni. Si scartano "//host", "/\host" (i browser
+  // leggono il backslash come una barra), i caratteri di controllo (il browser toglie tab e a capo,
+  // quindi "/<tab>/host" diventerebbe "//host") e tutto ciò che risolve su un'altra origine.
   function next() {
     var n = new URLSearchParams(location.search).get("next");
-    return n && n.charAt(0) === "/" && n.indexOf("//") !== 1 ? n : "/";
+    if (!n || n.charAt(0) !== "/" || /^\/[\/\\]/.test(n) || /[\u0000-\u001f\u007f]/.test(n)) return "/";
+    try {
+      var u = new URL(n, location.origin);
+      return u.origin === location.origin ? u.pathname + u.search + u.hash : "/";
+    } catch (e) { return "/"; }
   }
   function apply() {
     document.documentElement.lang = lang;

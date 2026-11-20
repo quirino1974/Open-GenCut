@@ -274,6 +274,10 @@ func (s *Server) finopsSummary(w http.ResponseWriter, r *http.Request) {
 		ids = append(ids, id)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		serverError(w, "finopsSummary rows", err)
+		return
+	}
 
 	groups := map[string]*FinOpsGroup{}
 	var order []string

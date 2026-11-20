@@ -133,6 +133,24 @@ def main():
     s, b = evaluate(ag, "versione 2026 del 2026-11-07")
     check("testo senza dati personali: allow e testo invariato",
           b.get("decision") == "allow" and b.get("text") == "versione 2026 del 2026-11-07", b)
+    # Formati comuni di telefono, minuscolo e caratteri che separano o nascondono le cifre
+    for nome, numero in [("cellulare a gruppi 3-3-4", "333 123 4567"), ("internazionale a gruppi", "+39 333 123 4567"),
+                         ("fisso con spazi", "06 1234 5678"), ("fisso compatto", "0612345678"),
+                         ("cellulare con trattini", "333-123-4567")]:
+        s, b = evaluate(ag, "tel " + numero + " grazie")
+        check(f"telefono {nome} mascherato", "[PII:PHONE]" in b.get("text", "")
+              and not any(c.isdigit() for c in b.get("text", "")), b)
+    s, b = evaluate(ag, "codice rssmra80a01f205x")
+    check("codice fiscale in minuscolo mascherato", "[PII:CF]" in b.get("text", ""), b)
+    s, b = evaluate(ag, "iban it60x0542811101000000123456 grazie")
+    check("IBAN in minuscolo mascherato", "[PII:IBAN]" in b.get("text", ""), b)
+    s, b = evaluate(ag, "carta 4539\u00a01488\u00a00343\u00a06467 ok")
+    check("carta con spazi non separabili mascherata", "[PII:CARD]" in b.get("text", ""), b)
+    s, b = evaluate(ag, "carta 4539\u200b1488\u200b0343\u200b6467 ok")
+    check("carta con caratteri invisibili mascherata", "[PII:CARD]" in b.get("text", ""), b)
+    s, b = evaluate(ag, "famiglia \U0001F468\u200d\U0001F469\u200d\U0001F467 ok")
+    check("emoji con carattere di unione senza dati personali: testo invariato",
+          b.get("decision") == "allow" and b.get("text") == "famiglia \U0001F468\u200d\U0001F469\u200d\U0001F467 ok", b)
 
     s, pb = add({"name": "gr-pii-block", "type": "pii_block", "scope": "global", "params": {"types": ["email"]}})
     s, b = evaluate(ag, "scrivi a mario.rossi@example.com")

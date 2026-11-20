@@ -238,6 +238,15 @@ def main():
     check("catena di audit valida dopo scritture concorrenti", s == 200 and v.get("valid") is True, v)
 
     # ------------------------------------------------------------------
+    section("Identificativi fuori misura")
+    for path, corpo in [("/integrations/allowlist", {"agent_id": 2 ** 31, "resource_id": 1}),
+                        ("/integrations/allowlist", {"agent_id": 1, "resource_id": 2 ** 31}),
+                        ("/integrations/limits", {"agent_id": 2 ** 31, "resource_id": 1}),
+                        ("/integrations/limits", {"agent_id": 1, "resource_id": 2 ** 31})]:
+        s, b = call("POST", path, corpo)
+        check(f"id oltre 2^31 su {path}: errore di validazione o non trovato, non 500", s in (400, 404), (s, b))
+
+    # ------------------------------------------------------------------
     section("Pulizia")
     for rid in created_resources:
         call("DELETE", f"/integrations/resources/{rid}")

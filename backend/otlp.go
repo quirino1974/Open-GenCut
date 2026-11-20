@@ -15,9 +15,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 )
+
+// reTraceID: nel formato OTLP/JSON il traceId è una stringa esadecimale di 32 caratteri.
+var reTraceID = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 const (
 	otlpMaxBody   = 5 << 20 // 5 MB
@@ -254,6 +258,10 @@ func (s *Server) ingestOTLP(w http.ResponseWriter, r *http.Request) {
 				id := strings.ToLower(strings.TrimSpace(sp.TraceID))
 				if id == "" {
 					writeValidation(w, "ogni span deve avere traceId")
+					return
+				}
+				if !reTraceID.MatchString(id) {
+					writeValidation(w, "traceId deve essere una stringa esadecimale di 32 caratteri")
 					return
 				}
 				if _, seen := groups[id]; !seen {

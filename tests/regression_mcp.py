@@ -255,6 +255,16 @@ def main():
     s, b = gw(ag6, down_api, method="GET")
     check("endpoint api non raggiungibile: 502 provider_error", s == 502, (s, b))
 
+    # Rete in uscita: gli indirizzi dei metadati e locali al collegamento si rifiutano alla registrazione
+    for nome, ep in [("metadati dei cloud", "http://169.254.169.254/latest/meta-data/"),
+                     ("IPv6 locale al collegamento", "http://[fe80::1]:8080/x"),
+                     ("non specificato", "http://0.0.0.0:8080/x")]:
+        s, b = call("POST", "/integrations/resources", {"name": f"ssrf-{stamp}-{nome[:4]}", "kind": "api",
+                                                        "endpoint": ep, "status": "enabled"})
+        if s == 201:
+            resources.append(b["id"])
+        check(f"endpoint {nome} rifiutato alla registrazione (400)", s == 400, (s, b))
+
     # ------------------------------------------------------------------
     section("Gateway verso un modello (llm_model), stessi controlli della chat")
     ag7 = new_agent("mcp-llm")

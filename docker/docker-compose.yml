@@ -50,6 +50,13 @@ services:
       WEB_DIR: /web
       CHAT_OPENAI_URL: ${CHAT_OPENAI_URL:-https://api.openai.com/v1/chat/completions}
       CHAT_LOCAL_URL: http://host.docker.internal:11434/v1/chat/completions
+      # I server MCP e le API del laboratorio stanno su reti interne: il gateway può raggiungerle.
+      # Gli indirizzi dei metadati dei cloud (169.254.0.0/16) restano sempre bloccati. Su un'installazione
+      # esposta, toglierla (o metterla a false) e usare solo indirizzi pubblici.
+      GATEWAY_ALLOW_PRIVATE_NETWORKS: "true"
+      # Reti dei proxy di cui ci si fida per X-Forwarded-For (es. 172.18.0.0/16). Da impostare dietro un
+      # proxy HTTPS, altrimenti il blocco del login vede tutti i client con l'indirizzo del proxy.
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

@@ -1367,6 +1367,10 @@ func (s *Server) complianceOverview(w http.ResponseWriter, r *http.Request) {
 		policies = append(policies, p)
 	}
 	prows.Close()
+	if err := prows.Err(); err != nil {
+		serverError(w, "overview policies rows", err)
+		return
+	}
 
 	agentIDs := []int{}
 	arows, err := s.db.QueryContext(ctx, `SELECT id FROM dbo.agent`)
@@ -1384,6 +1388,10 @@ func (s *Server) complianceOverview(w http.ResponseWriter, r *http.Request) {
 		agentIDs = append(agentIDs, id)
 	}
 	arows.Close()
+	if err := arows.Err(); err != nil {
+		serverError(w, "overview agent ids rows", err)
+		return
+	}
 	for _, id := range agentIDs {
 		facts, err := s.loadAgentFacts(ctx, id)
 		if err != nil {

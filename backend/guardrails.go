@@ -38,9 +38,11 @@ var (
 // Espressioni per il rilevamento. Le validazioni (Luhn, mod 97) riducono i falsi positivi.
 var (
 	reEmail = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
-	rePhone = regexp.MustCompile(`(?:\+\d{1,3}[ .\-]?)?\b3\d{2}[ .\-]?\d{6,7}\b|\+\d{1,3}[ .\-]?\d{6,12}\b`)
-	reCF    = regexp.MustCompile(`\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b`)
-	reIBAN  = regexp.MustCompile(`\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,4})?\b`)
+	// Telefoni: cellulari italiani (333 1234567, 333 123 4567), fissi con prefisso (06 1234 5678) e numeri
+	// internazionali con separatori. I numeri di 9-12 cifre che iniziano per 0 sono trattati come fissi.
+	rePhone = regexp.MustCompile(`(?:(?:\+|00)\d{1,3}[ .\-]?)?(?:\b3\d{2}[ .\-]?\d{3}[ .\-]?\d{3,4}\b|\b0\d{1,3}[ .\-]?\d{4}[ .\-]?\d{3,4}\b)|\+\d{1,3}(?:[ .\-]?\d{2,4}){2,4}\b`)
+	reCF    = regexp.MustCompile(`(?i)\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b`)
+	reIBAN  = regexp.MustCompile(`(?i)\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,4})?\b`)
 	reCard  = regexp.MustCompile(`\b(?:\d[ \-]?){12,18}\d\b`)
 
 	reInjection = []*regexp.Regexp{
@@ -466,7 +468,7 @@ func luhnValid(digits string) bool {
 
 // ibanValid verifica l'IBAN con il controllo mod 97 (ISO 13616).
 func ibanValid(iban string) bool {
-	s := strings.ReplaceAll(iban, " ", "")
+	s := strings.ToUpper(strings.ReplaceAll(iban, " ", ""))
 	if len(s) < 15 || len(s) > 34 {
 		return false
 	}
@@ -487,6 +489,42 @@ func ibanValid(iban string) bool {
 		return false
 	}
 	return new(big.Int).Mod(n, big.NewInt(97)).Int64() == 1
+}
+
+// normalizeForDetection prepara una copia del testo per il rilevamento: cifre e lettere a larghezza
+// piena diventano ASCII, gli spazi speciali (spazio non separabile, spazi tipografici) diventano
+// spazi normali e i caratteri invisibili (larghezza zero, controlli di direzione, trattino soffice)
+// vengono tolti. Senza questo basta un carattere invisibile o uno spazio non separabile tra le cifre
+// per eludere il rilevamento.
+func normalizeForDetection(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case r >= 0xFF10 && r <= 0xFF19: // cifre a larghezza piena
+			b.WriteRune('0' + (r - 0xFF10))
+		case r >= 0xFF21 && r <= 0xFF3A: // lettere maiuscole a larghezza piena
+			b.WriteRune('A' + (r - 0xFF21))
+		case r >= 0xFF41 && r <= 0xFF5A: // lettere minuscole a larghezza piena
+			b.WriteRune('a' + (r - 0xFF41))
+		case r == 0xFF20:
+			b.WriteRune('@')
+		case r == 0xFF0E:
+			b.WriteRune('.')
+		case r >= 0x0660 && r <= 0x0669: // cifre arabo-indiche
+			b.WriteRune('0' + (r - 0x0660))
+		case r >= 0x06F0 && r <= 0x06F9: // cifre arabo-indiche estese
+			b.WriteRune('0' + (r - 0x06F0))
+		case r == 0x00A0 || r == 0x202F || r == 0x205F || r == 0x3000 || (r >= 0x2000 && r <= 0x200A):
+			b.WriteByte(' ')
+		case r == 0x00AD || (r >= 0x200B && r <= 0x200F) || (r >= 0x202A && r <= 0x202E) ||
+			(r >= 0x2060 && r <= 0x2064) || (r >= 0x2066 && r <= 0x2069) || r == 0xFEFF:
+			// invisibili: si tolgono
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // scanPII cerca (e, se replace è vero, sostituisce) i dati personali dei tipi indicati.
@@ -669,6 +707,9 @@ func (s *Server) guardEval(ctx context.Context, in EvaluateInput) (EvaluateRespo
 
 	original := in.Text
 	cur := in.Text
+	// Il rilevamento lavora su una copia normalizzata; il testo restituito cambia solo se qualcosa viene mascherato.
+	norm := normalizeForDetection(original)
+	curNorm := norm
 	var violations []Violation
 	decision := "allow"
 	blocked := false
@@ -676,9 +717,10 @@ func (s *Server) guardEval(ctx context.Context, in EvaluateInput) (EvaluateRespo
 	for _, g := range active {
 		switch g.Type {
 		case "pii_mask":
-			masked, counts := scanPII(cur, paramStrings(g.Params, "types"), true)
+			masked, counts := scanPII(curNorm, paramStrings(g.Params, "types"), true)
 			if len(counts) > 0 {
 				cur = masked
+				curNorm = masked
 				if !blocked {
 					decision = "mask"
 				}
@@ -687,14 +729,14 @@ func (s *Server) guardEval(ctx context.Context, in EvaluateInput) (EvaluateRespo
 			}
 		case "pii_block":
 			// Le regole di blocco leggono il testo ricevuto: un mascheramento non deve nascondere un blocco.
-			_, counts := scanPII(original, paramStrings(g.Params, "types"), false)
+			_, counts := scanPII(norm, paramStrings(g.Params, "types"), false)
 			if len(counts) > 0 {
 				blocked = true
 				violations = append(violations, Violation{GuardrailID: g.ID, Type: g.Type, Detail: countsText(counts),
 					Params: map[string]any{"kinds": piiKindsOf(counts)}})
 			}
 		case "keyword_block":
-			lower := strings.ToLower(original)
+			lower := strings.ToLower(norm)
 			matched := 0
 			for _, term := range paramStrings(g.Params, "terms") {
 				if strings.Contains(lower, strings.ToLower(term)) {
@@ -735,7 +777,7 @@ func (s *Server) guardEval(ctx context.Context, in EvaluateInput) (EvaluateRespo
 					Params: map[string]any{"count": recent, "limit": p.Limit}})
 			}
 		case "prompt_injection":
-			if injectionFound(original) {
+			if injectionFound(norm) {
 				blocked = true
 				violations = append(violations, Violation{GuardrailID: g.ID, Type: g.Type,
 					Detail: "tentativo di sovrascrittura delle istruzioni", Params: map[string]any{}})

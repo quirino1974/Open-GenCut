@@ -283,6 +283,49 @@ def main():
     check("sesto tentativo, anche con la password giusta -> 429 too_many_attempts",
           st == 429 and p.get("error") == "too_many_attempts", (st, p))
 
+    # Il blocco vale per utente + indirizzo: da un altro indirizzo l'utente vero accede lo stesso,
+    # quindi chi sbaglia da fuori non può bloccarlo. Su Linux tutto 127.0.0.0/8 è locale, e il server
+    # vede come indirizzo del client quello sorgente della connessione.
+    import http.client
+    import json
+    import random
+    from urllib.parse import urlparse
+
+    def login_from(ip, user, pwd):
+        u = urlparse(API)
+        host = "127.0.0.1" if u.hostname in ("localhost", "::1") else u.hostname
+        try:
+            conn = http.client.HTTPConnection(host, u.port or 80, timeout=30, source_address=(ip, 0))
+            conn.request("POST", "/api/auth/login", body=json.dumps({"username": user, "password": pwd}),
+                         headers={"Content-Type": "application/json"})
+            r = conn.getresponse()
+            r.read()
+            conn.close()
+            return r.status
+        except OSError:
+            return None
+
+    def ip_casuale():
+        return "127.%d.%d.%d" % (random.randint(10, 250), random.randint(1, 250), random.randint(1, 250))
+
+    st = login_from(ip_casuale(), lock_user, "Blocco-Prova-2026")
+    if st is None:
+        print("  SKIP blocco per indirizzo: il server non è raggiungibile da un indirizzo sorgente diverso")
+    else:
+        check("da un altro indirizzo l'utente bloccato accede (il blocco è per utente + indirizzo)", st == 200, st)
+        ip3 = ip_casuale()
+        codici = [login_from(ip3, f"nessuno-ip-{stamp}-{i}", "x") for i in range(100)]
+        check("100 tentativi falliti da un indirizzo, utenti diversi -> tutti 401", codici == [401] * 100, codici)
+        check("dal 101° tentativo, anche con utente e password validi -> 429 per indirizzo",
+              login_from(ip3, lock_user, "Blocco-Prova-2026") == 429, "")
+
+    # Il registro di audit non cresce per nomi inventati; i tentativi su utenti esistenti restano
+    fantasma = f"fantasma-{stamp}"
+    raw_call(new_opener(), "POST", "/auth/login", {"username": fantasma, "password": "x"})
+    st, aud = admin("GET", "/audit?limit=500")
+    check("login con utente inesistente non scrive nel tracciamento", fantasma not in json.dumps(aud), "")
+    check("login sbagliato su un utente esistente resta nel tracciamento", lock_user in json.dumps(aud), "")
+
     # ------------------------------------------------------------------
     section("Logout")
     lo2, st, _ = login("admin", admin_pwd)

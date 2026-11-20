@@ -18,9 +18,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -29,7 +32,8 @@ import (
 const (
 	sessionCookie    = "gencut_session"
 	sessionTTL       = 8 * time.Hour
-	maxFailedLogins  = 5
+	maxFailedLogins  = 5   // tentativi falliti per utente e indirizzo in 10 minuti
+	maxFailedPerIP   = 100 // tentativi falliti per indirizzo, qualunque utente, in 10 minuti
 	loginWindow      = 10 * time.Minute
 	minPasswordLen   = 8
 	maxBcryptBytes   = 72
@@ -298,7 +302,91 @@ func ensureAdmin(ctx context.Context, db *sql.DB) error {
 	_, err = db.ExecContext(ctx,
 		`INSERT INTO dbo.app_user (username, password_hash, role, active, must_change_password)
 		 VALUES (@p1, @p2, 'admin', 1, 1)`, initialAdminUser, string(hash))
+	if dbErrNumber(err) == 2627 {
+		return nil // un'altra istanza ha creato l'utente iniziale nello stesso momento
+	}
 	return err
+}
+
+// trustedProxyNets legge dalla variabile TRUSTED_PROXY_CIDRS (reti separate da virgole, es.
+// "172.18.0.0/16") i proxy di cui ci si fida per l'intestazione X-Forwarded-For. Vuota di default.
+func trustedProxyNets() []*net.IPNet {
+	var nets []*net.IPNet
+	for _, c := range strings.Split(os.Getenv("TRUSTED_PROXY_CIDRS"), ",") {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			continue
+		}
+		if !strings.Contains(c, "/") {
+			if strings.Contains(c, ":") {
+				c += "/128"
+			} else {
+				c += "/32"
+			}
+		}
+		if _, n, err := net.ParseCIDR(c); err == nil {
+			nets = append(nets, n)
+		}
+	}
+	return nets
+}
+
+func inNets(ip net.IP, nets []*net.IPNet) bool {
+	for _, n := range nets {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// clientIP è l'indirizzo del client (senza porta). Senza proxy fidati è quello della connessione:
+// X-Forwarded-For lo scrive chiunque, e un client potrebbe falsificarlo per aggirare il blocco dei
+// tentativi. Se la connessione arriva da un proxy fidato (TRUSTED_PROXY_CIDRS) si legge
+// X-Forwarded-For da destra e si prende il primo indirizzo che non appartiene a un proxy fidato.
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	if nets := trustedProxyNets(); len(nets) > 0 {
+		if peer := net.ParseIP(host); peer != nil && inNets(peer, nets) {
+			parts := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+			for i := len(parts) - 1; i >= 0; i-- {
+				p := net.ParseIP(strings.TrimSpace(parts[i]))
+				if p == nil {
+					break
+				}
+				if !inNets(p, nets) {
+					host = p.String()
+					break
+				}
+			}
+		}
+	}
+	if len(host) > 45 {
+		host = host[:45]
+	}
+	return host
+}
+
+// lastAuthCleanup è l'ultimo istante (secondi Unix) in cui si sono ripuliti sessioni e tentativi.
+var lastAuthCleanup atomic.Int64
+
+// maybeCleanupAuth cancella, al massimo una volta al minuto, i tentativi di login più vecchi di un
+// giorno e le sessioni scadute. Senza, le due tabelle crescerebbero all'infinito.
+func (s *Server) maybeCleanupAuth() {
+	now := time.Now().Unix()
+	last := lastAuthCleanup.Load()
+	if now-last < 60 || !lastAuthCleanup.CompareAndSwap(last, now) {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, _ = s.db.ExecContext(ctx, `DELETE FROM dbo.login_attempt WHERE at < DATEADD(DAY, -1, SYSUTCDATETIME()) LIMIT 1000`)
+		_, _ = s.db.ExecContext(ctx, `DELETE FROM dbo.login_session WHERE expires_at < SYSUTCDATETIME() LIMIT 1000`)
+	}()
 }
 
 // ---------------------------------------------------------------------------
@@ -385,14 +473,24 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 
-	var failed int
+	// Il blocco vale per la coppia utente + indirizzo: chi sbaglia da un altro indirizzo non può
+	// bloccare l'utente vero. Un secondo limite per indirizzo ferma i tentativi su tanti utenti.
+	ip := clientIP(r)
+	var failed, failedIP int
 	if err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM dbo.login_attempt WHERE username = @p1 AND success = 0 AND at >= DATEADD(MINUTE, -10, SYSUTCDATETIME())`,
-		in.Username).Scan(&failed); err != nil {
+		`SELECT COUNT(*) FROM dbo.login_attempt WHERE username = @p1 AND ip = @p2 AND success = 0 AND at >= DATEADD(MINUTE, -10, SYSUTCDATETIME())`,
+		in.Username, ip).Scan(&failed); err != nil {
 		serverError(w, "login attempts", err)
 		return
 	}
-	if failed >= maxFailedLogins {
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM dbo.login_attempt WHERE ip = @p1 AND success = 0 AND at >= DATEADD(MINUTE, -10, SYSUTCDATETIME())`,
+		ip).Scan(&failedIP); err != nil {
+		serverError(w, "login attempts ip", err)
+		return
+	}
+	s.maybeCleanupAuth()
+	if failed >= maxFailedLogins || failedIP >= maxFailedPerIP {
 		writeError(w, http.StatusTooManyRequests, "too_many_attempts", "troppi tentativi: riprova tra qualche minuto")
 		return
 	}
@@ -424,15 +522,19 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO dbo.login_attempt (username, success) VALUES (@p1, @p2)`, in.Username, success); err != nil {
+		`INSERT INTO dbo.login_attempt (username, ip, success) VALUES (@p1, @p2, @p3)`, in.Username, ip, success); err != nil {
 		serverError(w, "login attempt", err)
 		return
 	}
 	if !success {
-		if err := writeAudit(withActor(ctx, in.Username), tx, "create", "auth", 0,
-			auditDetail("auth_failed", map[string]any{"username": in.Username})); err != nil {
-			serverError(w, "login audit", err)
-			return
+		// Il tentativo si conta sempre, ma nel registro di audit entrano solo quelli su utenti esistenti:
+		// con nomi inventati chiunque, senza accedere, farebbe crescere il registro e la catena di hash.
+		if found {
+			if err := writeAudit(withActor(ctx, in.Username), tx, "create", "auth", 0,
+				auditDetail("auth_failed", map[string]any{"username": in.Username})); err != nil {
+				serverError(w, "login audit", err)
+				return
+			}
 		}
 		if err := tx.Commit(); err != nil {
 			serverError(w, "login commit", err)
@@ -456,6 +558,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE dbo.app_user SET last_login_at = SYSUTCDATETIME() WHERE id = @p1`, id); err != nil {
 		serverError(w, "login update", err)
+		return
+	}
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM dbo.login_attempt WHERE username = @p1 AND ip = @p2 AND success = 0`, in.Username, ip); err != nil {
+		serverError(w, "login reset attempts", err)
 		return
 	}
 	if err := writeAudit(withActor(ctx, in.Username), tx, "create", "auth", id,

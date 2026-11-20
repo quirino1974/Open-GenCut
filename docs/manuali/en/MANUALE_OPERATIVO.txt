@@ -48,6 +48,8 @@ To apply it again by hand (for example on an existing database):
 
     docker exec -i -e MYSQL_PWD="$DB_ROOT_PASSWORD" opengencut-db mariadb -uroot geniuscut < db/schema.sql
 
+For a database created before 20 November 2026 also apply db/migrazioni/2026-11-20-login-ip.sql (column and indexes for the per-address login lockout): it is idempotent and must be applied after a backup.
+
 The expected tables are 36, including agent, configuration, audit, usage_log, integration_resource, agent_access, access_limit, access_event, agent_version, agent_environment, agent_deployment, agent_evaluation, integration_approval, app_lock.
 
 3.3 Start the API
@@ -72,6 +74,8 @@ DB_USER  gencut  application user (created by the compose file)
 DB_PASSWORD  none (required)  password of the application user, passed by the compose file from DB_APP_PASSWORD
 HTTP_ADDR  :8080  address the API listens on
 WEB_DIR  /web  folder of the GUI inside the container
+GATEWAY_ALLOW_PRIVATE_NETWORKS  false (true in the compose file)  lets the gateway connect to loopback and private networks; cloud metadata addresses always stay blocked
+TRUSTED_PROXY_CIDRS  empty  networks of the proxies trusted for X-Forwarded-For (e.g. 172.18.0.0/16); needed behind an HTTPS proxy so the login lockout sees the real client
 
 The database uses utf8mb4 with READ-COMMITTED isolation, set by the compose file.
 
@@ -187,7 +191,7 @@ Roles: admin (everything, including user management), manager (compliance manage
 
 User management (admin only): GET /api/users, POST /api/users, PUT /api/users/{id}, DELETE /api/users/{id}, POST /api/users/{id}/reset-password. A temporary password is shown only once; the user changes it at first login.
 
-Lockout: five failed attempts within ten minutes for the same user block the login (429) for as long as the failures stay in the window. To unlock a user earlier, wait for the window to expire.
+Lockout: five failed attempts within ten minutes for the same user + address pair block that user's login from that address (429) for as long as the failures stay in the window; someone failing from another address does not lock out the real user. A limit of 100 failed attempts in ten minutes per address also applies. To unlock earlier, wait for the window to expire. Behind an HTTPS proxy set TRUSTED_PROXY_CIDRS, otherwise every client appears with the proxy's address.
 
 10.1 Credentials for the regression suites
 

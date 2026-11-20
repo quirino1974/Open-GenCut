@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -81,9 +82,12 @@ func mcpRPC(ctx context.Context, endpoint, method string, params any) (json.RawM
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	client := &http.Client{Timeout: gatewayTimeout}
+	client := safeHTTPClient(gatewayTimeout)
 	resp, err := client.Do(req)
 	if err != nil {
+		if errors.Is(err, errBlockedAddress) {
+			return nil, errBlockedAddress
+		}
 		return nil, errors.New("il server MCP non risponde")
 	}
 	defer resp.Body.Close()
@@ -116,7 +120,7 @@ func checkEndpoint(endpoint string) error {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return errors.New("endpoint della risorsa non valido o assente")
 	}
-	return nil
+	return checkEndpointPolicy(endpoint)
 }
 
 // apiCall invia la richiesta all'endpoint di una risorsa api e restituisce il corpo della risposta.
@@ -135,9 +139,12 @@ func apiCall(ctx context.Context, endpoint, method, payload string) ([]byte, err
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	client := &http.Client{Timeout: gatewayTimeout}
+	client := safeHTTPClient(gatewayTimeout)
 	resp, err := client.Do(req)
 	if err != nil {
+		if errors.Is(err, errBlockedAddress) {
+			return nil, errBlockedAddress
+		}
 		return nil, errors.New("l'endpoint non risponde")
 	}
 	defer resp.Body.Close()
@@ -293,10 +300,34 @@ func (s *Server) gatewayChecks(ctx context.Context, tx *sql.Tx, agentID, resourc
 }
 
 // releaseApprovals riporta a approved le approvazioni prenotate, se la chiamata non è avvenuta.
+// Usa un contesto che non si annulla con la richiesta: se il client si disconnette il rilascio
+// deve avvenire lo stesso, altrimenti l'approvazione resterebbe consumata senza chiamata.
 func (s *Server) releaseApprovals(ctx context.Context, ids []int64) {
+	if len(ids) == 0 {
+		return
+	}
+	dctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
 	for _, id := range ids {
-		_, _ = s.db.ExecContext(ctx,
-			`UPDATE dbo.integration_approval SET status = 'approved', used_at = NULL WHERE id = @p1 AND status = 'used'`, id)
+		if _, err := s.db.ExecContext(dctx,
+			`UPDATE dbo.integration_approval SET status = 'approved', used_at = NULL WHERE id = @p1 AND status = 'used'`, id); err != nil {
+			log.Printf("errore rilascio approvazione %d: %v", id, err)
+		}
+	}
+}
+
+// recordGatewayLogged registra l'esito con un contesto non annullabile, riprova una volta e, se
+// fallisce ancora, lascia traccia nel log invece di perdere la registrazione in silenzio.
+func (s *Server) recordGatewayLogged(ctx context.Context, agentID, resourceID int, toolName, decision, reason string,
+	argsText string, result []byte, latency int, reachedProvider, success bool) {
+	dctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	err := s.recordGateway(dctx, agentID, resourceID, toolName, decision, reason, argsText, result, latency, reachedProvider, success)
+	if err != nil {
+		err = s.recordGateway(dctx, agentID, resourceID, toolName, decision, reason, argsText, result, latency, reachedProvider, success)
+	}
+	if err != nil {
+		log.Printf("errore registro gateway (agente %d, risorsa %d, esito %s): %v", agentID, resourceID, decision, err)
 	}
 }
 
@@ -471,7 +502,7 @@ func (s *Server) gatewayCall(w http.ResponseWriter, r *http.Request) {
 	}
 	if inRes.Decision == "block" {
 		release()
-		_ = s.recordGateway(ctx, in.AgentID, in.ResourceID, in.Tool, "blocked", "guardrail_input", argsText, nil,
+		s.recordGatewayLogged(ctx, in.AgentID, in.ResourceID, in.Tool, "blocked", "guardrail_input", argsText, nil,
 			int(time.Since(started).Milliseconds()), false, false)
 		fail("blocked", "guardrail_input", pre)
 		return
@@ -482,7 +513,7 @@ func (s *Server) gatewayCall(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				// argomenti mascherati non più validi come oggetto: si nega per sicurezza
 				release()
-				_ = s.recordGateway(ctx, in.AgentID, in.ResourceID, in.Tool, "blocked", "guardrail_input", argsText, nil,
+				s.recordGatewayLogged(ctx, in.AgentID, in.ResourceID, in.Tool, "blocked", "guardrail_input", argsText, nil,
 					int(time.Since(started).Milliseconds()), false, false)
 				fail("blocked", "guardrail_input", pre)
 				return
@@ -508,7 +539,7 @@ func (s *Server) gatewayCall(w http.ResponseWriter, r *http.Request) {
 	latency := int(time.Since(started).Milliseconds())
 	if callErr != nil {
 		release()
-		_ = s.recordGateway(ctx, in.AgentID, in.ResourceID, in.Tool, "allowed", pre.reason, argsText, nil, latency, true, false)
+		s.recordGatewayLogged(ctx, in.AgentID, in.ResourceID, in.Tool, "allowed", pre.reason, argsText, nil, latency, true, false)
 		writeError(w, http.StatusBadGateway, "provider_error", callErr.Error())
 		return
 	}
@@ -518,11 +549,13 @@ func (s *Server) gatewayCall(w http.ResponseWriter, r *http.Request) {
 	outRes, serr := s.guardEval(ctx, EvaluateInput{AgentID: in.AgentID, ResourceID: &in.ResourceID,
 		Direction: "output", Text: resultText})
 	if serr != nil {
+		// la chiamata è avvenuta: va registrata anche se il controllo in uscita non è riuscito
+		s.recordGatewayLogged(ctx, in.AgentID, in.ResourceID, in.Tool, "allowed", pre.reason, argsText, nil, latency, true, true)
 		writeSvcErr(w, serr)
 		return
 	}
 	if outRes.Decision == "block" {
-		_ = s.recordGateway(ctx, in.AgentID, in.ResourceID, in.Tool, "blocked", "guardrail_output", argsText, nil, latency, true, true)
+		s.recordGatewayLogged(ctx, in.AgentID, in.ResourceID, in.Tool, "blocked", "guardrail_output", argsText, nil, latency, true, true)
 		writeJSON(w, http.StatusOK, GatewayResponse{Decision: "blocked", Reason: "guardrail_output", ApprovalID: nil, LatencyMS: latency})
 		return
 	}
@@ -534,7 +567,7 @@ func (s *Server) gatewayCall(w http.ResponseWriter, r *http.Request) {
 		b, _ := json.Marshal(resultText)
 		out = b
 	}
-	_ = s.recordGateway(ctx, in.AgentID, in.ResourceID, in.Tool, "allowed", pre.reason, argsText, []byte(resultText), latency, true, true)
+	s.recordGatewayLogged(ctx, in.AgentID, in.ResourceID, in.Tool, "allowed", pre.reason, argsText, []byte(resultText), latency, true, true)
 	writeJSON(w, http.StatusOK, GatewayResponse{Decision: "allowed", Reason: pre.reason, Result: out, LatencyMS: latency})
 }
 

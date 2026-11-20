@@ -227,6 +227,24 @@ def main():
     allowed_sum = sum(e["cost"] for e in log if e["decision"] == "allowed")
     check("access_event: somma permessi = 0,25", abs(allowed_sum - 0.25) < 1e-6, allowed_sum)
 
+    # Confine del limite di costo: 3 x 0,10 con tetto 0,30 sono esattamente il tetto e devono passare.
+    # In virgola mobile 0,1+0,1+0,1 supera 0,3 e la terza chiamata veniva negata a torto.
+    s, b = call("POST", "/agents", {"name": "Reg costo confine", "origin": "internal"})
+    a_cb = b["id"]
+    created_agents.append(a_cb)
+    call("PUT", f"/agents/{a_cb}", {"name": "Reg costo confine", "origin": "internal", "status": "active"})
+    s, b = call("POST", "/integrations/resources", {"kind": "api", "name": "reg-costo-confine"})
+    r_cb = b["id"]
+    created_resources.append(r_cb)
+    call("POST", "/integrations/allowlist", {"agent_id": a_cb, "resource_id": r_cb})
+    call("POST", "/integrations/limits", {"agent_id": a_cb, "resource_id": r_cb, "max_cost_per_month": 0.30,
+                                          "currency": "EUR"})
+    esiti = [call("POST", "/integrations/check", {"agent_id": a_cb, "resource_id": r_cb, "cost": 0.1})[1].get("decision")
+             for _ in range(3)]
+    check("limite di costo al confine: 3 x 0,10 con tetto 0,30 tutte permesse", esiti == ["allowed"] * 3, esiti)
+    s, b = call("POST", "/integrations/check", {"agent_id": a_cb, "resource_id": r_cb, "cost": 0.0001})
+    check("limite di costo: un decimillesimo oltre il tetto si nega", b.get("reason") == "monthly_cost_limit", b)
+
     # ------------------------------------------------------------------
     section("Punto 4 - R4 dichiarazione di trasparenza")
     s, b = call("POST", "/agents", {"name": "R4 interagisce", "origin": "internal", "interacts_with_people": True})

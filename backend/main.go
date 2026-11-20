@@ -161,7 +161,17 @@ func main() {
 	srv := &Server{db: db}
 	addr := getenv("HTTP_ADDR", ":8080")
 	log.Printf("Open-GenCut API v0.1 in ascolto su %s", addr)
-	if err := http.ListenAndServe(addr, srv.routes()); err != nil {
+	// Timeout espliciti: senza, connessioni lente o inattive restano aperte all'infinito.
+	httpSrv := &http.Server{
+		Addr:              addr,
+		Handler:           srv.routes(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      3 * time.Minute, // più della chiamata più lunga al fornitore (60 s) con i guardrail
+		IdleTimeout:       2 * time.Minute,
+		MaxHeaderBytes:    1 << 20,
+	}
+	if err := httpSrv.ListenAndServe(); err != nil {
 		log.Fatalf("server HTTP: %v", err)
 	}
 }

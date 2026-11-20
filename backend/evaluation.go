@@ -499,6 +499,10 @@ func (s *Server) listTraces(w http.ResponseWriter, r *http.Request) {
 		ids = append(ids, id)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		serverError(w, "listTraces rows", err)
+		return
+	}
 	out := []Trace{}
 	for _, id := range ids {
 		t, err := s.fetchTrace(r.Context(), id)
@@ -583,6 +587,10 @@ func (s *Server) listEvalRules(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out = append(out, rl)
+	}
+	if err := rows.Err(); err != nil {
+		serverError(w, "listEvalRules rows", err)
+		return
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -877,6 +885,10 @@ func (s *Server) evalSummary(w http.ResponseWriter, r *http.Request) {
 		outcomes = append(outcomes, o)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		serverError(w, "evalSummary drift rows", err)
+		return
+	}
 	threshold := defaultDrift
 	if rl, ok, err := s.ruleOfType(ctx, "drift_threshold"); err != nil {
 		serverError(w, "evalSummary rule", err)

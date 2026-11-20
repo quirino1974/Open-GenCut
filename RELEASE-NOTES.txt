@@ -3,6 +3,32 @@ NOTE DI RILASCIO - OPEN-GENCUT
 
 Autore: Quirino Scaramastra
 
+0.2 ALFA - 2026-11-20 - laboratorio, non per la produzione
+---------------------------------------------------------
+Database MariaDB e correzioni da una verifica dei difetti.
+Database:
+- il database è MariaDB 11.4, non più SQL Server: schema in db/schema.sql, traduzione delle query in
+  backend/dialect.go, dati del laboratorio migrabili; lo schema T-SQL resta in db/schema_sqlserver.sql;
+- per i database creati prima di questa versione: db/migrazioni/2026-11-20-login-ip.sql.
+Correzioni:
+- limite di costo mensile: i costi si confrontano in decimillesimi interi; prima 3 x 0,10 con tetto 0,30
+  veniva negato alla terza chiamata per un errore della virgola mobile;
+- mascheramento dei dati personali: telefoni a gruppi (333 123 4567, +39 333 123 4567) e fissi, codice
+  fiscale e IBAN in minuscolo, carte con spazi non separabili, caratteri invisibili o cifre a larghezza piena;
+- login: il blocco vale per utente + indirizzo (prima chiunque poteva bloccare un utente con 5 errori) e c'è
+  un limite per indirizzo; i tentativi con utenti inesistenti non scrivono più nel tracciamento; tentativi
+  vecchi e sessioni scadute si cancellano da soli; TRUSTED_PROXY_CIDRS per l'indirizzo dietro un proxy;
+- rete in uscita del gateway: indirizzi dei metadati dei cloud sempre bloccati, reti private bloccate salvo
+  GATEWAY_ALLOW_PRIVATE_NETWORKS=true, controllo alla connessione, massimo 3 reindirizzamenti;
+- server HTTP con timeout (prima un client lento poteva tenere aperta la connessione all'infinito);
+- gateway: il rilascio delle approvazioni e la registrazione non si perdono se il client si disconnette;
+  gli errori di registrazione non sono più ignorati in silenzio;
+- identificativi oltre 2^31: errore di validazione invece di 500;
+- OTLP: traceId esadecimale di 32 caratteri;
+- pagine di accesso: la destinazione dopo il login accetta solo percorsi interni (prima passava un indirizzo come /\sito);
+- sei elenchi controllano l'errore finale di lettura delle righe, per non restituire risultati troncati;
+- creazione dell'utente iniziale tollerante a due istanze che partono insieme.
+
 0.1 ALFA - 2026-11-07 - laboratorio, non per la produzione
 ---------------------------------------------------------
 Prima versione di laboratorio. Funzioni:

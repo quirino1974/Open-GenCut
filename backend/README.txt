@@ -44,6 +44,13 @@ parentesi quadre). Le parti che non si traducono automaticamente sono riscritte 
 Limite: il confronto dei testi è insensibile agli accenti (utf8mb4_unicode_ci); SQL Server usava
 un confronto sensibile agli accenti.
 
+Rete in uscita
+---------------
+
+Gateway e sincronizzazione MCP usano netguard.go: gli indirizzi dei metadati dei cloud (169.254.0.0/16) sono
+sempre bloccati; loopback e reti private sono bloccati salvo GATEWAY_ALLOW_PRIVATE_NETWORKS=true, impostata nel
+compose del laboratorio. Il controllo avviene alla connessione, quindi vale anche per nomi host e reindirizzamenti.
+
 Struttura
 ---------
 

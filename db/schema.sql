@@ -505,7 +505,12 @@ CREATE TABLE IF NOT EXISTS login_attempt (
     at DATETIME(3) NOT NULL DEFAULT (UTC_TIMESTAMP(3))
 );
 
+ALTER TABLE login_attempt ADD COLUMN IF NOT EXISTS ip VARCHAR(45) NOT NULL DEFAULT '';
+
 CREATE INDEX IF NOT EXISTS ix_attempt_user_time ON login_attempt (username, at);
+CREATE INDEX IF NOT EXISTS ix_attempt_ip_time ON login_attempt (ip, at);
+CREATE INDEX IF NOT EXISTS ix_attempt_at ON login_attempt (at);
+CREATE INDEX IF NOT EXISTS ix_session_expires ON login_session (expires_at);
 
 ALTER TABLE integration_approval ADD COLUMN IF NOT EXISTS tool_id INT NULL;
 

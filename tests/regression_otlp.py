@@ -100,6 +100,12 @@ def main():
     check("agente inesistente -> 404", st == 404, (st, p))
     st, p, raw = post_raw(ag, json.dumps(request([{"name": "senza-trace", "spanId": "b"}])).encode())
     check("span senza traceId -> 400", st == 400, (st, p))
+    st, p, raw = post_raw(ag, json.dumps(request([{"traceId": "zz" * 16, "spanId": "b", "name": "x",
+                                                   "startTimeUnixNano": "1", "endTimeUnixNano": "2"}])).encode())
+    check("traceId non esadecimale -> 400", st == 400, (st, p))
+    st, p, raw = post_raw(ag, json.dumps(request([{"traceId": "ab12", "spanId": "b", "name": "x",
+                                                   "startTimeUnixNano": "1", "endTimeUnixNano": "2"}])).encode())
+    check("traceId troppo corto -> 400", st == 400, (st, p))
 
     section("Mappatura delle tracce")
     t0 = 1_000_000_000
