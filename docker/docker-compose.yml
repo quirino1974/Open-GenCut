@@ -1,7 +1,20 @@
+name: opengencut
 # Open-GenCut - API backend (il team)
-# Avvio: MSSQL_SA_PASSWORD viene letta dal .env dello stack mon_mssql_express
-#. Non copiare la password in questo file.
+# Avvio: MSSQL_SA_PASSWORD viene letta dal file docker/.env (non versionato).
+# Il database e' il contenitore opengencut-sql di questo stack.
 services:
+  opengencut-sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: opengencut-sql
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+    volumes:
+      - opengencut-sqldata:/var/opt/mssql
+    networks:
+      - mon_mysql_net
+
   opengencut-api:
     image: golang:1.23-bookworm
     container_name: opengencut-api
@@ -9,7 +22,7 @@ services:
     working_dir: /src
     command: sh -c "go build -o /tmp/api . && /tmp/api"
     environment:
-      MSSQL_HOST: mon_mssql_express
+      MSSQL_HOST: opengencut-sql
       MSSQL_PORT: "1433"
       MSSQL_DATABASE: geniuscut
       MSSQL_USER: sa
@@ -19,6 +32,9 @@ services:
       GOFLAGS: "-mod=mod"
       WEB_DIR: /web
       CHAT_OPENAI_URL: ${CHAT_OPENAI_URL:-https://api.openai.com/v1/chat/completions}
+      CHAT_LOCAL_URL: http://host.docker.internal:11434/v1/chat/completions
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
     volumes:
@@ -30,6 +46,7 @@ services:
 
 volumes:
   opengencut-gocache:
+  opengencut-sqldata:
 
 networks:
   mon_mysql_net:

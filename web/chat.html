@@ -60,7 +60,7 @@
     <h3 style="margin-top:0" data-i18n="h.setup">Configurazione</h3>
     <div class="grid">
       <div><label for="provider" data-i18n="f.provider">Fornitore</label>
-        <select id="provider"><option value="anthropic">Anthropic</option><option value="openai">OpenAI (ChatGPT)</option></select></div>
+        <select id="provider"><option value="anthropic">Anthropic</option><option value="openai">OpenAI (ChatGPT)</option><option value="local">Modello locale</option></select></div>
       <div><label for="model" data-i18n="f.model">Modello</label><input id="model" value="claude-haiku-5-5"></div>
       <div><label for="apikey" data-i18n="f.apikey">Chiave API</label><input id="apikey" type="password" autocomplete="off"></div>
       <div><label for="agent" data-i18n="f.agent">Agente registrato</label><select id="agent"></select></div>
@@ -155,18 +155,19 @@
     $("#resource").innerHTML = resources.map(function (x) { return '<option value="' + x.id + '">' + esc(x.name) + "</option>"; }).join("") || '<option value="">' + esc(t("empty")) + "</option>";
     if (saved) $("#resource").value = saved;
   }
-  function endpointFor(p) { return p === "openai" ? "https://api.openai.com/v1/chat/completions" : "https://api.anthropic.com/v1/messages"; }
+  function nomeFornitore(p) { return p === "openai" ? "OpenAI" : (p === "local" ? "Locale" : "Anthropic"); }
+  function endpointFor(p) { return p === "openai" ? "https://api.openai.com/v1/chat/completions" : (p === "local" ? "http://localhost:11434/v1/chat/completions" : "https://api.anthropic.com/v1/messages"); }
   function register() {
     var p = $("#provider").value, model = $("#model").value.trim() || "modello";
     var ag = load("agent");
     var step = ag ? Promise.resolve({ id: +ag }) : api("POST", "/agents", {
-      name: "Chatbot " + (p === "openai" ? "OpenAI" : "Anthropic"), description: "Chat client registrato dalla pagina chat",
-      origin: "internal", vendor: p === "openai" ? "OpenAI" : "Anthropic", version: model, owner: "Chat client",
+      name: "Chatbot " + nomeFornitore(p), description: "Chat client registrato dalla pagina chat",
+      origin: "internal", vendor: nomeFornitore(p), version: model, owner: "Chat client",
       status: "active", model: model, endpoint: endpointFor(p), cost_monthly: 0, currency: "EUR",
       interacts_with_people: true, interaction_language: lang });
     return step.then(function (a) {
       store("agent", String(a.id));
-      var rname = "API " + (p === "openai" ? "OpenAI" : "Anthropic") + " " + model;
+      var rname = "API " + nomeFornitore(p) + " " + model;
       var rs = load("res." + p) ? Promise.resolve({ id: +load("res." + p) }) : api("GET", "/integrations/resources?kind=llm_model").then(function (list) {
         var found = (list || []).filter(function (x) { return x.name === rname; })[0];
         return found ? { id: found.id } : api("POST", "/integrations/resources", { name: rname, kind: "llm_model", endpoint: endpointFor(p), status: "enabled" });
@@ -193,7 +194,7 @@
     var key = $("#apikey").value.trim();
     var ag = $("#agent").value, res = $("#resource").value;
     if (!ag || !res) return notice(t("need"), "err");
-    if (!key) return notice(t("keyNeeded"), "err");
+    if (!key && $("#provider").value !== "local") return notice(t("keyNeeded"), "err");
     $("#input").value = "";
     bubble("user", text, t("you"));
     history.push({ role: "user", content: text });
@@ -224,7 +225,7 @@
 
   // La chiave non viene mai salvata: resta solo nel campo della pagina fino al ricaricamento.
   try { localStorage.removeItem("gencut.chat.apikey"); } catch (e) { /* ignorato */ }
-  $("#provider").addEventListener("change", function () { $("#model").value = $("#provider").value === "openai" ? "gpt-4o" : "claude-haiku-5-5"; refreshResources(); });
+  $("#provider").addEventListener("change", function () { $("#model").value = $("#provider").value === "openai" ? "gpt-4o" : ($("#provider").value === "local" ? "qwen2.5:0.5b" : "claude-haiku-5-5"); refreshResources(); });
   $("#agent").addEventListener("change", function () { store("agent", $("#agent").value); });
   $("#resource").addEventListener("change", function () { store("res." + $("#provider").value, $("#resource").value); });
   $("#reg").addEventListener("click", register);

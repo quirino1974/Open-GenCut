@@ -34,7 +34,7 @@ const (
 )
 
 var (
-	chatProviders = map[string]bool{"anthropic": true, "openai": true}
+	chatProviders = map[string]bool{"anthropic": true, "openai": true, "local": true}
 	chatRoles     = map[string]bool{"user": true, "assistant": true}
 )
 
@@ -81,11 +81,15 @@ func (s *Server) registerChat(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/chat/complete", s.chatComplete)
 }
 
-// providerURL restituisce l'URL del fornitore. Gli URL predefiniti sono quelli pubblici;
-// le variabili CHAT_ANTHROPIC_URL e CHAT_OPENAI_URL servono solo per i test con un fornitore finto.
+// providerURL restituisce l'URL del fornitore. Gli URL predefiniti sono quelli pubblici.
+// CHAT_LOCAL_URL punta a un modello locale con API compatibile OpenAI (per esempio Ollama).
+// Le variabili CHAT_ANTHROPIC_URL e CHAT_OPENAI_URL servono anche per i test con un fornitore finto.
 func providerURL(provider string) string {
-	if provider == "anthropic" {
+	switch provider {
+	case "anthropic":
 		return getenv("CHAT_ANTHROPIC_URL", "https://api.anthropic.com/v1/messages")
+	case "local":
+		return getenv("CHAT_LOCAL_URL", "http://localhost:11434/v1/chat/completions")
 	}
 	return getenv("CHAT_OPENAI_URL", "https://api.openai.com/v1/chat/completions")
 }
@@ -93,10 +97,14 @@ func providerURL(provider string) string {
 // validateChat controlla il corpo. Nessun messaggio di errore contiene la chiave.
 func validateChat(in *ChatInput) string {
 	if !chatProviders[in.Provider] {
-		return "provider deve essere anthropic o openai"
+		return "provider deve essere anthropic, openai o local"
 	}
-	if in.APIKey == "" || runeLen(in.APIKey) > 500 {
+	// Il modello locale non richiede chiave; anthropic e openai sì.
+	if in.Provider != "local" && in.APIKey == "" {
 		return "api_key è obbligatoria (massimo 500 caratteri)"
+	}
+	if runeLen(in.APIKey) > 500 {
+		return "api_key supera 500 caratteri"
 	}
 	in.Model = strings.TrimSpace(in.Model)
 	if in.Model == "" || runeLen(in.Model) > 100 {
@@ -291,6 +299,14 @@ func callProvider(ctx context.Context, in ChatInput) (string, int, int, error) {
 		}
 		body = map[string]any{"model": in.Model, "max_completion_tokens": chatMaxTokens, "messages": msgs}
 		headers = map[string]string{"Authorization": "Bearer " + in.APIKey, "content-type": "application/json"}
+		if in.Provider == "local" {
+			// Il server locale vuole max_tokens e, senza chiave, nessun Authorization.
+			delete(body, "max_completion_tokens")
+			body["max_tokens"] = chatMaxTokens
+			if in.APIKey == "" {
+				delete(headers, "Authorization")
+			}
+		}
 	}
 	raw, err := json.Marshal(body)
 	if err != nil {
