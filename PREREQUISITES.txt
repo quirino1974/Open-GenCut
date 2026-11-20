@@ -6,12 +6,12 @@ Autore: Quirino Scaramastra
 SISTEMA
 -------
 - Linux (testato su Ubuntu) con Docker e Docker Compose v2.
-- Almeno 4 GB di RAM libera per SQL Server e per il server Go; 10 GB di disco.
-- Porte: 8080 (HTTP), 8443 (HTTPS), 1433 (SQL Server).
+- Almeno 2 GB di RAM libera per MariaDB e per il server Go; 10 GB di disco.
+- Porte: 8080 (HTTP), 8443 (HTTPS, da configurare). Il database non espone porte fuori dallo stack.
 
 SOFTWARE E IMMAGINI DOCKER
 --------------------------
-- mcr.microsoft.com/mssql/server:2022-latest (database geniuscut).
+- mariadb:11.4 (database geniuscut, utf8mb4, isolamento READ-COMMITTED).
 - golang:1.23-bookworm (compilazione e avvio del server; il modulo Go richiede la rete al primo avvio).
 - nginx:stable-alpine (proxy HTTPS).
 - python:3.12-slim (solo per le suite di regressione).

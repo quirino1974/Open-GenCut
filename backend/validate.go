@@ -1,6 +1,6 @@
 // Open-GenCut - Validazioni condivise: importi, interi e lunghezze.
 //
-// Limiti dei tipi SQL Server usati dal database:
+// Limiti dei campi di testo usati dal database (lunghezze in caratteri):
 //
 //	DECIMAL(18,4) -> importi fino a 99999999999999.9999
 //	INT           -> interi fino a 2147483647
@@ -23,7 +23,7 @@ func validMoney(v float64) bool {
 	return !math.IsNaN(v) && !math.IsInf(v, 0) && v >= 0 && v <= maxMoney
 }
 
-// runeLen conta i caratteri, non i byte: "è" vale 1, come nelle colonne NVARCHAR di SQL Server.
+// runeLen conta i caratteri, non i byte: "è" vale 1, come nelle colonne VARCHAR utf8mb4.
 func runeLen(s string) int {
 	return utf8.RuneCountInString(s)
 }

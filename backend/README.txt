@@ -2,7 +2,7 @@ OPEN-GENCUT - BACKEND (API V0.1, PUNTO 1)
 -----------------------------------------
 
 Server Go che implementa il contratto di docs/API.txt sul database geniuscut
-(SQL Server 2022, container mon_mssql_express, porta 1433). Serve anche la GUI
+(MariaDB 11.4, container opengencut-db, porta 3306 interna allo stack). Serve anche la GUI
 statica di web/ sulla stessa origine.
 
 Autore: Quirino Scaramastra.
@@ -11,25 +11,38 @@ Avvio
 -----
 
 Il server gira nel container golang:1.23-bookworm definito in docker/docker-compose.yml.
-La password SA viene letta dalla variabile MSSQL_SA_PASSWORD (non va scritta nel compose):
+Le password vengono lette dal file docker/.env (non versionato):
 
     cd <cartella del progetto>/docker
-    export MSSQL_SA_PASSWORD="$(grep '^MSSQL_SA_PASSWORD=' <cartella dello stack del database>/.env | cut -d= -f2- | tr -d '\"')"
     docker compose up -d
 
 Porta: 8080 (http://localhost:8080). Log: docker logs -f opengencut-api.
 Al primo avvio il container compila il modulo (circa 30-40 secondi).
 
+Variabili di connessione (con i valori predefiniti):
+    DB_HOST=opengencut-db   DB_PORT=3306   DB_NAME=geniuscut
+    DB_USER=gencut          DB_PASSWORD=   (obbligatoria)
+
 Database
 --------
 
-Lo schema è in db/schema.sql (idempotente). Applicazione manuale:
+Lo schema è in db/schema.sql (MariaDB, idempotente). Viene applicato automaticamente alla
+prima inizializzazione del volume. Applicazione manuale:
 
-    docker cp db/schema.sql mon_mssql_express:/tmp/schema.sql
-    docker exec mon_mssql_express bash -c 'SQLCMD=$(ls /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd | head -1); "$SQLCMD" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -b -i /tmp/schema.sql'
+    docker exec -i -e MYSQL_PWD="$DB_ROOT_PASSWORD" opengencut-db mariadb -uroot geniuscut < db/schema.sql
 
-Tabelle punto 1: agent, configuration, audit, usage_log.
-Tabelle punto 2: integration_resource, agent_access, access_limit, access_event.
+Lo schema di partenza in T-SQL (SQL Server) è conservato in db/schema_sqlserver.sql solo come riferimento.
+
+Traduzione SQL
+--------------
+
+Le query del backend sono scritte in dialetto T-SQL. Il driver in dialect.go le traduce al volo
+verso MariaDB (segnaposto @pN, TOP, OUTPUT inserted, hint di blocco, DATEADD, ISNULL, nomi tra
+parentesi quadre). Le parti che non si traducono automaticamente sono riscritte nel codice
+(MERGE, blocchi applicativi, DATEFROMPARTS). I test di traduzione sono in dialect_test.go.
+
+Limite: il confronto dei testi è insensibile agli accenti (utf8mb4_unicode_ci); SQL Server usava
+un confronto sensibile agli accenti.
 
 Struttura
 ---------
@@ -37,7 +50,7 @@ Struttura
 File  Contenuto
 main.go  server, rotte, handler, validazione, audit, metriche
 integrations.go  punto 2: risorse, allowlist, limiti, controllo accesso, registro accessi
-go.mod, go.sum  modulo; unica dipendenza github.com/microsoft/go-mssqldb
+go.mod, go.sum  modulo; driver github.com/go-sql-driver/mysql (MariaDB)
 ../web/  GUI statica, servita su / (WEB_DIR, default /web)
 
 Rotte

@@ -37,18 +37,18 @@ func (s *Server) listInactiveAgents(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := s.db.QueryContext(r.Context(),
 		`SELECT a.id, a.name, a.origin, a.status, last.last_at
-		   FROM dbo.agent a
-		   OUTER APPLY (
-		       SELECT MAX(x.t) AS last_at FROM (
-		           SELECT MAX(called_at) AS t FROM dbo.usage_log WHERE agent_id = a.id
+		   FROM agent a
+		   LEFT JOIN (
+		       SELECT agent_id, MAX(t) AS last_at FROM (
+		           SELECT agent_id, called_at AS t FROM usage_log
 		           UNION ALL
-		           SELECT MAX(at) FROM dbo.access_event WHERE agent_id = a.id
+		           SELECT agent_id, at FROM access_event
 		           UNION ALL
-		           SELECT MAX(created_at) FROM dbo.eval_trace WHERE agent_id = a.id
-		       ) x
-		   ) last
+		           SELECT agent_id, created_at FROM eval_trace
+		       ) x GROUP BY agent_id
+		   ) last ON last.agent_id = a.id
 		  WHERE a.status = 'active'
-		    AND (last.last_at IS NULL OR last.last_at < DATEADD(DAY, -@p1, SYSUTCDATETIME()))
+		    AND (last.last_at IS NULL OR last.last_at < DATE_ADD(UTC_TIMESTAMP(3), INTERVAL -@p1 DAY))
 		  ORDER BY a.id`, days)
 	if err != nil {
 		serverError(w, "listInactiveAgents", err)

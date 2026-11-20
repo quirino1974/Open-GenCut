@@ -271,6 +271,9 @@ func insertPendingApproval(ctx context.Context, tx *sql.Tx, agentID, resourceID,
 //   - approvazione valida presente: la consuma (used) e permette l'accesso;
 //   - nessuna approvazione: riusa o apre una richiesta pending e nega con approval_required.
 func approvalGate(ctx context.Context, tx *sql.Tx, agentID, resourceID, toolID int) (string, string, *int) {
+	if err := pairLock(ctx, tx, agentID, resourceID); err != nil {
+		return "denied", "check_error", nil
+	}
 	var id int
 	err := tx.QueryRowContext(ctx,
 		`SELECT TOP (1) id FROM dbo.integration_approval WITH (UPDLOCK, ROWLOCK)

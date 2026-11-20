@@ -623,9 +623,7 @@ func (s *Server) guardEval(ctx context.Context, in EvaluateInput) (EvaluateRespo
 	defer tx.Rollback()
 
 	// Blocco applicativo per agente: serializza le valutazioni dello stesso agente.
-	if _, err := tx.ExecContext(ctx,
-		`EXEC sp_getapplock @Resource = @p1, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 30000`,
-		"opengencut_guard_"+strconv.Itoa(in.AgentID)); err != nil {
+	if err := lockKey(ctx, tx, "opengencut_guard_"+strconv.Itoa(in.AgentID)); err != nil {
 		return EvaluateResponse{}, internalErr("evaluate lock", err)
 	}
 

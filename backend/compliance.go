@@ -244,12 +244,11 @@ func (s *Server) putSecurity(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	_, err = tx.ExecContext(r.Context(),
-		`MERGE dbo.resource_security AS t
-		 USING (SELECT @p1 AS resource_id) AS s ON t.resource_id = s.resource_id
-		 WHEN MATCHED THEN UPDATE SET classification = @p2, encrypted_at_rest = @p3, encrypted_in_transit = @p4,
-		      pii_allowed = @p5, retention_days = @p6, updated_at = SYSUTCDATETIME()
-		 WHEN NOT MATCHED THEN INSERT (resource_id, classification, encrypted_at_rest, encrypted_in_transit,
-		      pii_allowed, retention_days) VALUES (@p1, @p2, @p3, @p4, @p5, @p6);`,
+		`INSERT INTO resource_security (resource_id, classification, encrypted_at_rest, encrypted_in_transit,
+		      pii_allowed, retention_days) VALUES (@p1, @p2, @p3, @p4, @p5, @p6)
+		 ON DUPLICATE KEY UPDATE classification = VALUES(classification), encrypted_at_rest = VALUES(encrypted_at_rest),
+		      encrypted_in_transit = VALUES(encrypted_in_transit), pii_allowed = VALUES(pii_allowed),
+		      retention_days = VALUES(retention_days), updated_at = UTC_TIMESTAMP(3)`,
 		id, in.Classification, in.EncryptedAtRest, in.EncryptedInTransit, in.PIIAllowed, intParam(in.RetentionDays))
 	if err != nil {
 		writeDBError(w, "putSecurity upsert", err)
@@ -1218,12 +1217,9 @@ func (s *Server) putAssessment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = tx.ExecContext(r.Context(),
-		`MERGE dbo.agent_control_assessment AS t
-		 USING (SELECT @p1 AS agent_id, @p2 AS control_id) AS s
-		    ON t.agent_id = s.agent_id AND t.control_id = s.control_id
-		 WHEN MATCHED THEN UPDATE SET status = @p3, evidence_note = @p4, updated_at = SYSUTCDATETIME()
-		 WHEN NOT MATCHED THEN INSERT (agent_id, control_id, status, evidence_note)
-		      VALUES (@p1, @p2, @p3, @p4);`,
+		`INSERT INTO agent_control_assessment (agent_id, control_id, status, evidence_note)
+		 VALUES (@p1, @p2, @p3, @p4)
+		 ON DUPLICATE KEY UPDATE status = VALUES(status), evidence_note = VALUES(evidence_note), updated_at = UTC_TIMESTAMP(3)`,
 		agentID, controlID, in.Status, nullable(in.EvidenceNote))
 	if err != nil {
 		writeDBError(w, "putAssessment upsert", err)

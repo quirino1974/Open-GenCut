@@ -25,22 +25,22 @@ Vedi il file PREREQUISITES.txt.
 
 INSTALLAZIONE E AVVIO
 ---------------------
-1. Avvia SQL Server 2022 in un container, con un database chiamato geniuscut.
-   La password dell'amministratore del database va messa in un file .env, mai nei file del progetto.
+Il database e' MariaDB 11.4 (immagine mariadb:11.4), in un container dello stack.
 
-2. Crea lo schema del database. Dalla cartella del progetto:
-     docker cp db/schema.sql <contenitore-sql>:/tmp/schema.sql
-     docker exec <contenitore-sql> bash -c 'sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -b -i /tmp/schema.sql'
+1. Crea il file docker/.env (non versionato) con le due password:
+     DB_ROOT_PASSWORD=...     amministratore del database (manutenzione)
+     DB_APP_PASSWORD=...      utente applicativo "gencut", usato dal backend
+   Le password non vanno mai nei file del progetto.
 
-3. Avvia il server. Dalla cartella docker/:
-     export MSSQL_SA_PASSWORD='...'
+2. Avvia lo stack. Dalla cartella docker/:
      docker compose up -d
+   Alla prima inizializzazione del volume il database geniuscut viene creato e lo schema
+   db/schema.sql viene applicato automaticamente (con i dati iniziali dei framework di conformita').
 
-4. Apri il browser su:
+3. Apri il browser su:
      http://localhost:8080      (accesso in chiaro, rete di laboratorio)
-     https://localhost:8443     (accesso cifrato, certificato auto-firmato da accettare)
 
-5. Al primo accesso l'utente admin ha la password iniziale 'admin' e deve cambiarla.
+4. Al primo accesso l'utente admin ha la password iniziale 'admin' e deve cambiarla.
    Questa e' una credenziale di laboratorio: cambiarla subito.
 
 INDIRIZZI PRINCIPALI

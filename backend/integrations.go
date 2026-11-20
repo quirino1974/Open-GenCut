@@ -16,8 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	mssql "github.com/microsoft/go-mssqldb"
 )
 
 var (
@@ -873,15 +871,7 @@ func optionalID(w http.ResponseWriter, raw, field string) (int, bool) {
 // writeLimitDBError traduce gli errori di scrittura dei limiti. Per i limiti la violazione
 // di unicità riguarda la coppia agente-risorsa, quindi il messaggio è specifico.
 func writeLimitDBError(w http.ResponseWriter, where string, err error) {
-	var me mssql.Error
-	var mep *mssql.Error
-	var num int32
-	switch {
-	case errors.As(err, &me):
-		num = me.Number
-	case errors.As(err, &mep):
-		num = mep.Number
-	}
+	num := dbErrNumber(err)
 	if num == 2627 || num == 2601 {
 		writeError(w, http.StatusConflict, "conflict", "coppia agente-risorsa già presente nei limiti")
 		return
@@ -935,7 +925,7 @@ func limitDecision(ctx context.Context, tx *sql.Tx, agentID, resourceID int, cos
 		if err := tx.QueryRowContext(ctx,
 			`SELECT CAST(ISNULL(SUM(cost), 0) AS FLOAT) FROM dbo.access_event
 			  WHERE agent_id = @p1 AND resource_id = @p2 AND decision = 'allowed'
-			    AND at >= DATEFROMPARTS(YEAR(SYSUTCDATETIME()), MONTH(SYSUTCDATETIME()), 1)`,
+			    AND at >= DATE_FORMAT(UTC_TIMESTAMP(3), '%Y-%m-01')`,
 			agentID, resourceID).Scan(&spent); err != nil {
 			return "denied", "check_error"
 		}

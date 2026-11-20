@@ -10,11 +10,11 @@
 //
 // Variabili d'ambiente:
 //
-//	MSSQL_HOST      host SQL Server      (default: mon_mssql_express)
-//	MSSQL_PORT      porta                (default: 1433)
-//	MSSQL_DATABASE  database             (default: geniuscut)
-//	MSSQL_USER      utente               (default: sa)
-//	MSSQL_PASSWORD  password             (obbligatoria, nessun default)
+//	DB_HOST      host MariaDB      (default: opengencut-db)
+//	DB_PORT      porta             (default: 3306)
+//	DB_NAME      database          (default: geniuscut)
+//	DB_USER      utente            (default: gencut)
+//	DB_PASSWORD  password          (obbligatoria, nessun default)
 //	HTTP_ADDR       indirizzo di ascolto (default: :8080)
 package main
 
@@ -28,14 +28,13 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/go-sql-driver/mysql"
 )
 
 // Valori ammessi, come da CHECK di db/schema.sql e docs/API.txt.
@@ -142,7 +141,7 @@ func main() {
 		log.Fatalf("configurazione database: %v", err)
 	}
 
-	db, err := sql.Open("sqlserver", dsn)
+	db, err := sql.Open(driverName, dsn)
 	if err != nil {
 		log.Fatalf("apertura database: %v", err)
 	}
@@ -151,7 +150,7 @@ func main() {
 	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(30 * time.Minute)
 
-	// Il container SQL Server può impiegare qualche secondo ad avviarsi.
+	// Il database può impiegare qualche secondo ad avviarsi.
 	if err := waitForDB(db, 60*time.Second); err != nil {
 		log.Fatalf("database non raggiungibile: %v", err)
 	}
@@ -259,12 +258,12 @@ func (s *Server) listAgents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ESCAPE '\' rende letterali i caratteri % e _ digitati dall'utente.
+	// ESCAPE '!' rende letterali i caratteri % e _ digitati dall'utente.
 	like := "%" + likeEscape(q) + "%"
 	rows, err := s.db.QueryContext(r.Context(),
 		`SELECT `+agentColumns+` FROM dbo.agent a
-		  WHERE (@p1 = N'' OR a.name LIKE @p2 ESCAPE '\' OR a.description LIKE @p2 ESCAPE '\'
-		         OR a.vendor LIKE @p2 ESCAPE '\' OR a.model LIKE @p2 ESCAPE '\' OR a.owner LIKE @p2 ESCAPE '\')
+		  WHERE (@p1 = N'' OR a.name LIKE @p2 ESCAPE '!' OR a.description LIKE @p2 ESCAPE '!'
+		         OR a.vendor LIKE @p2 ESCAPE '!' OR a.model LIKE @p2 ESCAPE '!' OR a.owner LIKE @p2 ESCAPE '!')
 		    AND (@p3 = N'' OR a.origin = @p3)
 		    AND (@p4 = N'' OR a.status = @p4)
 		    AND (@p5 = N'' OR a.owner = @p5)
@@ -1038,20 +1037,12 @@ func serverError(w http.ResponseWriter, where string, err error) {
 	writeError(w, http.StatusInternalServerError, "internal_error", "errore interno")
 }
 
-// writeDBError traduce gli errori SQL Server più comuni in codici HTTP.
+// writeDBError traduce gli errori del database più comuni in codici HTTP.
 //
 //	2627 / 2601 violazione di unicità          -> 409 conflict
 //	547 / 515   chiave esterna, CHECK, NULL     -> 400 validation_error
 func writeDBError(w http.ResponseWriter, where string, err error) {
-	var me mssql.Error
-	var mep *mssql.Error
-	var num int32
-	switch {
-	case errors.As(err, &me):
-		num = me.Number
-	case errors.As(err, &mep):
-		num = mep.Number
-	}
+	num := dbErrNumber(err)
 	switch num {
 	case 2627, 2601:
 		writeError(w, http.StatusConflict, "conflict", "valore già presente (chiave duplicata)")
@@ -1093,9 +1084,9 @@ func ptrOf(ns sql.NullString) *string {
 	return &v
 }
 
-// likeEscape rende letterali i caratteri speciali di LIKE (usare con ESCAPE '\').
+// likeEscape rende letterali i caratteri speciali di LIKE (usare con ESCAPE '!').
 func likeEscape(s string) string {
-	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`, `[`, `\[`)
+	r := strings.NewReplacer(`!`, `!!`, `%`, `!%`, `_`, `!_`)
 	return r.Replace(s)
 }
 
@@ -1114,22 +1105,27 @@ func parseDay(s string) (any, error) {
 	return t.UTC(), nil
 }
 
-// buildDSN costruisce la stringa di connessione dalle variabili d'ambiente.
+// buildDSN costruisce la stringa di connessione a MariaDB dalle variabili d'ambiente.
+// DB_PASSWORD e' obbligatoria; le altre hanno valori predefiniti per il laboratorio.
 func buildDSN() (string, error) {
-	pwd := os.Getenv("MSSQL_PASSWORD")
+	pwd := os.Getenv("DB_PASSWORD")
 	if pwd == "" {
-		return "", errors.New("MSSQL_PASSWORD non impostata")
+		return "", errors.New("DB_PASSWORD non impostata")
 	}
-	u := &url.URL{
-		Scheme: "sqlserver",
-		User:   url.UserPassword(getenv("MSSQL_USER", "sa"), pwd),
-		Host:   net.JoinHostPort(getenv("MSSQL_HOST", "mon_mssql_express"), getenv("MSSQL_PORT", "1433")),
+	cfg := mysql.NewConfig()
+	cfg.User = getenv("DB_USER", "gencut")
+	cfg.Passwd = pwd
+	cfg.Net = "tcp"
+	cfg.Addr = net.JoinHostPort(getenv("DB_HOST", "opengencut-maria"), getenv("DB_PORT", "3306"))
+	cfg.DBName = getenv("DB_NAME", "geniuscut")
+	cfg.ParseTime = true // DATETIME come time.Time
+	cfg.Loc = time.UTC
+	cfg.Collation = "utf8mb4_unicode_ci"
+	cfg.Params = map[string]string{
+		"charset":               "utf8mb4",
+		"transaction_isolation": "'READ-COMMITTED'", // come il default di SQL Server
 	}
-	q := u.Query()
-	q.Set("database", getenv("MSSQL_DATABASE", "geniuscut"))
-	q.Set("encrypt", "disable") // laboratorio: certificato non gestito
-	u.RawQuery = q.Encode()
-	return u.String(), nil
+	return cfg.FormatDSN(), nil
 }
 
 // waitForDB ritenta il ping finché il database risponde o scade il timeout.

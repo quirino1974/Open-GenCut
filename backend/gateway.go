@@ -235,6 +235,11 @@ func (s *Server) gatewayChecks(ctx context.Context, tx *sql.Tx, agentID, resourc
 	for tid := range needsApproval {
 		tids = append(tids, tid)
 	}
+	if len(tids) > 0 {
+		if err := pairLock(ctx, tx, agentID, resourceID); err != nil {
+			return pre, err
+		}
+	}
 	for _, tid := range tids {
 		var n int
 		if err := tx.QueryRowContext(ctx,

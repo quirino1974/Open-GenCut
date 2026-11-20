@@ -1,17 +1,31 @@
 name: opengencut
-# Open-GenCut - API backend (il team)
-# Avvio: MSSQL_SA_PASSWORD viene letta dal file docker/.env (non versionato).
-# Il database e' il contenitore opengencut-sql di questo stack.
+# Open-GenCut - backend API e database MariaDB (il team)
+# Avvio: le password stanno nel file docker/.env (non versionato):
+#   DB_ROOT_PASSWORD  amministratore del database (solo per manutenzione)
+#   DB_APP_PASSWORD   utente applicativo "gencut" usato dal backend
+# Lo schema db/schema.sql viene applicato alla prima inizializzazione del volume.
 services:
-  opengencut-sql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: opengencut-sql
+  opengencut-db:
+    image: mariadb:11.4
+    container_name: opengencut-db
     restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --transaction-isolation=READ-COMMITTED
     environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: geniuscut
+      MARIADB_USER: gencut
+      MARIADB_PASSWORD: ${DB_APP_PASSWORD}
     volumes:
-      - opengencut-sqldata:/var/opt/mssql
+      - opengencut-dbdata:/var/lib/mysql
+      - ../db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
     networks:
       - mon_mysql_net
 
@@ -21,12 +35,15 @@ services:
     restart: unless-stopped
     working_dir: /src
     command: sh -c "go build -o /tmp/api . && /tmp/api"
+    depends_on:
+      opengencut-db:
+        condition: service_healthy
     environment:
-      MSSQL_HOST: opengencut-sql
-      MSSQL_PORT: "1433"
-      MSSQL_DATABASE: geniuscut
-      MSSQL_USER: sa
-      MSSQL_PASSWORD: ${MSSQL_SA_PASSWORD}
+      DB_HOST: opengencut-db
+      DB_PORT: "3306"
+      DB_NAME: geniuscut
+      DB_USER: gencut
+      DB_PASSWORD: ${DB_APP_PASSWORD}
       HTTP_ADDR: ":8080"
       CHAT_ANTHROPIC_URL: ${CHAT_ANTHROPIC_URL:-https://api.anthropic.com/v1/messages}
       GOFLAGS: "-mod=mod"
@@ -46,7 +63,7 @@ services:
 
 volumes:
   opengencut-gocache:
-  opengencut-sqldata:
+  opengencut-dbdata:
 
 networks:
   mon_mysql_net:

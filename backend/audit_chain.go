@@ -57,9 +57,7 @@ func formatAt(t time.Time) string {
 // e due scritture simultanee biforcherebbero la catena.
 func chainTail(ctx context.Context, tx *sql.Tx, chain string) ([]byte, error) {
 	table := "dbo." + chain
-	if _, err := tx.ExecContext(ctx,
-		`EXEC sp_getapplock @Resource = @p1, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 30000`,
-		"opengencut_chain_"+chain); err != nil {
+	if err := lockKey(ctx, tx, "opengencut_chain_"+chain); err != nil {
 		return nil, err
 	}
 	var h []byte

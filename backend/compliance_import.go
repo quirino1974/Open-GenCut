@@ -114,21 +114,16 @@ func (s *Server) importFramework(w http.ResponseWriter, r *http.Request) {
 
 	created, updated := 0, 0
 	for _, c := range in.Controls {
-		var action string
-		err := tx.QueryRowContext(ctx,
-			`MERGE dbo.compliance_control AS t
-			 USING (SELECT @p1 AS framework_id, @p2 AS code, @p3 AS title, @p4 AS description) AS s
-			    ON t.framework_id = s.framework_id AND t.code = s.code
-			 WHEN MATCHED THEN UPDATE SET title = s.title, description = s.description
-			 WHEN NOT MATCHED THEN INSERT (framework_id, code, title, description)
-			      VALUES (s.framework_id, s.code, s.title, s.description)
-			 OUTPUT $action;`,
-			id, c.Code, c.Title, nullable(c.Description)).Scan(&action)
+		res, err := tx.ExecContext(ctx,
+			`INSERT INTO compliance_control (framework_id, code, title, description) VALUES (@p1, @p2, @p3, @p4)
+			 ON DUPLICATE KEY UPDATE title = VALUES(title), description = VALUES(description)`,
+			id, c.Code, c.Title, nullable(c.Description))
 		if err != nil {
 			writeDBError(w, "importFramework control", err)
 			return
 		}
-		if action == "INSERT" {
+		// Con ON DUPLICATE KEY UPDATE: 1 riga coinvolta = inserimento; altrimenti aggiornamento.
+		if n, _ := res.RowsAffected(); n == 1 {
 			created++
 		} else {
 			updated++

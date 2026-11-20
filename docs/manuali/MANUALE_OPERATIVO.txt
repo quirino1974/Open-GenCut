@@ -13,7 +13,7 @@ Open-GenCut è una piattaforma per la governance degli agenti (AMP). In questa f
 -------------
 
 Componente  Dove gira  Ruolo
-SQL Server 2022 (database geniuscut)  container mon_mssql_express, porta 1433  dati di tutte le funzioni
+MariaDB 11.4 (database geniuscut)  container opengencut-db, porta 3306 interna allo stack  dati di tutte le funzioni
 API e GUI  container opengencut-api (immagine golang:1.23-bookworm), porta 8080  API REST sotto /api e pagine statiche
 Schema del database  db/schema.sql  tabelle, vincoli, colonne aggiuntive
 Test di regressione  tests/regression_backend.py, tests/regression_lifecycle.py  verifiche automatiche delle rotte
@@ -25,38 +25,34 @@ La GUI è in quattro pagine statiche servite dall'API: /index.html (sezioni Agen
 
 - Docker e Docker Compose.
 - La rete Docker mon_mysql_net già esistente (è dichiarata come external nel compose).
-- Lo stack mon_mssql_express con il suo file .env, che contiene la variabile MSSQL_SA_PASSWORD.
-- Porte libere: 1433 (SQL Server) e 8080 (API).
+- Il file docker/.env (non versionato) con DB_ROOT_PASSWORD e DB_APP_PASSWORD.
+- Porta libera: 8080 (API). Il database non espone porte fuori dallo stack.
 - Python 3 sul computer da cui si lanciano i test (nessuna libreria esterna).
 
 3. Installazione e primo avvio
 ------------------------------
 
-3.1 Avviare SQL Server
+3.1 Avviare lo stack
 
-    cd <cartella dello stack del database>
+Dalla cartella docker/ del progetto, con il file .env che contiene DB_ROOT_PASSWORD e DB_APP_PASSWORD:
+
+    cd <cartella del progetto>/docker
     docker compose up -d
-    docker logs --tail 5 mon_mssql_express   # attendere "Recovery is complete"
+    docker logs --tail 5 opengencut-db     # attendere "ready for connections"
 
-3.2 Creare il database e applicare lo schema
+3.2 Lo schema del database
 
-Lo script db/schema.sql crea il database geniuscut se manca e applica tutte le tabelle. È idempotente: si può rieseguire senza danni.
+Alla prima inizializzazione del volume il database geniuscut viene creato e db/schema.sql viene applicato automaticamente, con i dati iniziali dei framework di conformità. Lo script è idempotente: si può rieseguire senza danni.
 
-    cd <cartella del progetto>
-    docker cp db/schema.sql mon_mssql_express:/tmp/schema.sql
-    docker exec mon_mssql_express bash -c 'SQLCMD=$(ls /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd | head -1); "$SQLCMD" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -b -i /tmp/schema.sql'
+Per riapplicarlo a mano (per esempio su un database già esistente):
 
-Il comando termina con codice 0 se tutto è corretto. Le tabelle attese sono: agent, configuration, audit, usage_log, integration_resource, agent_access, access_limit, access_event, agent_version, agent_environment, agent_deployment, agent_evaluation, integration_approval.
+    docker exec -i -e MYSQL_PWD="$DB_ROOT_PASSWORD" opengencut-db mariadb -uroot geniuscut < db/schema.sql
+
+Le tabelle attese sono 36, comprese agent, configuration, audit, usage_log, integration_resource, agent_access, access_limit, access_event, agent_version, agent_environment, agent_deployment, agent_evaluation, integration_approval, app_lock.
 
 3.3 Avviare l'API
 
-Dalla cartella docker/ del progetto. La password non va scritta nei file: si legge dal .env dello stack del database.
-
-    cd <cartella del progetto>/docker
-    export MSSQL_SA_PASSWORD="$(grep '^MSSQL_SA_PASSWORD=' <cartella dello stack del database>/.env | cut -d= -f2- | tr -d '\"')"
-    docker compose up -d
-
-Al primo avvio il container compila il modulo Go: servono circa 30-45 secondi. Il server attende fino a 60 secondi che il database risponda.
+L'API parte insieme allo stack (sezione 3.1). Al primo avvio il container compila il modulo Go: servono circa 30-45 secondi. Il server attende fino a 60 secondi che il database risponda.
 
 Verifica:
 
@@ -71,32 +67,35 @@ Poi aprire http://localhost:8080/ nel browser.
 Le impostazioni sono variabili d'ambiente del servizio opengencut-api in docker/docker-compose.yml.
 
 Variabile  Default  Significato
-MSSQL_HOST  mon_mssql_express  host di SQL Server
-MSSQL_PORT  1433  porta di SQL Server
-MSSQL_DATABASE  geniuscut  database
-MSSQL_USER  sa  utente
-MSSQL_PASSWORD  nessuno (obbligatoria)  password, passata dal compose da MSSQL_SA_PASSWORD
+DB_HOST  opengencut-db  host del database (nome del container nello stack)
+DB_PORT  3306  porta del database
+DB_NAME  geniuscut  database
+DB_USER  gencut  utente applicativo (creato dal compose)
+DB_PASSWORD  nessuno (obbligatoria)  password dell'utente applicativo, passata dal compose da DB_APP_PASSWORD
 HTTP_ADDR  :8080  indirizzo di ascolto dell'API
 WEB_DIR  /web  cartella della GUI dentro il container
+
+Il database usa utf8mb4 con isolamento READ-COMMITTED, impostati dal compose.
+
+Non scrivere le password nel compose né in altri file del progetto.
 
 Per cambiare la porta dell'API, modificare ports e HTTP_ADDR nel compose e rilanciare docker compose up -d.
 
 Non scrivere la password nel compose né in altri file del progetto.
 
 5. Backup
----------
 
 I dati stanno nel database geniuscut. L'API non conserva stato locale: basta il backup del database.
 
-Il percorso dei file di SQL Server nel container è /var/opt/mssql. Il comando seguente crea un backup completo in una cartella dentro il container, che è montata come data/ dello stack sull'host.
+Backup completo (il file finisce sull'host, fuori dal container):
 
-    docker exec mon_mssql_express bash -c 'mkdir -p /var/opt/mssql/backup && SQLCMD=$(ls /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd | head -1); "$SQLCMD" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -Q "BACKUP DATABASE geniuscut TO DISK = N'"'"'/var/opt/mssql/backup/geniuscut_$(date +%Y%m%d_%H%M).bak'"'"' WITH INIT, COPY_ONLY"'
+    docker exec opengencut-db sh -c 'exec mariadb-dump -uroot -p"$MARIADB_ROOT_PASSWORD" --single-transaction --routines geniuscut' > geniuscut-AAAA-MM-GG.sql
 
-Il backup va copiato fuori dal container e conservato. Verificare sempre il file con:
+Il comando è stato provato: il file ripristinato in un database di prova ha gli stessi conteggi di tabelle, agenti e controlli dell'originale. Il ripristino va fatto su un database di prova prima di usarlo in una emergenza. Il file contiene dati del registro e dei log: conservarlo con le stesse cautele dei dati.
 
-    docker exec mon_mssql_express bash -c 'SQLCMD=$(ls /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd | head -1); "$SQLCMD" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -Q "RESTORE VERIFYONLY FROM DISK = N'"'"'/var/opt/mssql/backup/NOME_FILE.bak'"'"'"'
+Ripristino (su un database vuoto o di prova):
 
-Il comando di backup e la verifica sono stati provati in una cartella temporanea del container. Il ripristino (RESTORE DATABASE) non è ancora stato provato: va fatto su un database di prova prima di usarlo in una emergenza.
+    docker exec -i opengencut-db sh -c 'exec mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" geniuscut' < geniuscut-AAAA-MM-GG.sql
 
 6. Verifica dopo un intervento
 ------------------------------
@@ -115,8 +114,8 @@ Il controllo audit/verify ricalcola la catena di hash del registro di audit e de
 
 Sintomo  Causa probabile  Azione
 curl su /api/health non risponde  container API non avviato o ancora in compilazione  docker logs opengencut-api; attendere 45 secondi
-log: MSSQL_PASSWORD non impostata  MSSQL_SA_PASSWORD non esportata prima di docker compose up  rieseguire l'esportazione del passo 3.3
-health 503 con "db":"error"  SQL Server non in ascolto  docker ps, docker logs mon_mssql_express; verificare la porta 1433
+log: DB_PASSWORD non impostata  DB_APP_PASSWORD assente nel file docker/.env  aggiungerla e rilanciare docker compose up -d
+health 503 con "db":"error"  MariaDB non in ascolto  docker ps, docker logs opengencut-db
 log: Invalid object name 'dbo.xxx'  schema non applicato o vecchio  riapplicare db/schema.sql (passo 3.2)
 500 internal_error su una rotta  errore interno: il dettaglio è solo nel log  docker logs opengencut-api \  grep errore
 409 conflict su una configurazione  chiave già presente nel registro  scegliere un'altra chiave

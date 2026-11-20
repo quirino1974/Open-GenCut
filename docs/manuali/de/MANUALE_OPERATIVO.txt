@@ -12,7 +12,7 @@ Open-GenCut ist eine Plattform zur Governance von Agenten (AMP). In dieser Phase
 --------------
 
 Komponente  Wo sie läuft  Aufgabe
-SQL Server 2022 (Datenbank geniuscut)  Container mon_mssql_express, Port 1433  Daten aller Funktionen
+MariaDB 11.4 (Datenbank geniuscut)  Container opengencut-db, Port 3306 innerhalb des Stacks  Daten aller Funktionen
 API und Oberfläche  Container opengencut-api (Image golang:1.23-bookworm), Port 8080  REST-API unter /api und statische Seiten
 Datenbankschema  db/schema.sql  Tabellen, Einschränkungen, zusätzliche Spalten
 Regressionstests  tests/regression_backend.py, tests/regression_lifecycle.py  automatische Prüfung der Routen
@@ -24,78 +24,70 @@ Die Oberfläche besteht aus drei statischen Seiten, die von der API ausgeliefert
 
 - Docker und Docker Compose.
 - Das bestehende Docker-Netzwerk mon_mysql_net (in der Compose-Datei als external deklariert).
-- Der Stack mon_mssql_express mit seiner Datei .env, die die Variable MSSQL_SA_PASSWORD enthält.
-- Freie Ports: 1433 (SQL Server) und 8080 (API).
+- Die Datei docker/.env (nicht versioniert) mit DB_ROOT_PASSWORD und DB_APP_PASSWORD.
+- Freier Port: 8080 (API). Die Datenbank stellt außerhalb des Stacks keine Ports bereit.
 - Python 3 auf dem Rechner, von dem aus die Tests laufen (keine externen Bibliotheken).
 
 3. Installation und erster Start
 --------------------------------
 
-3.1 SQL Server starten
+3.1 Den Stack starten
 
-    cd <cartella dello stack del database>
+Im Ordner docker/ des Projekts, mit der Datei .env, die DB_ROOT_PASSWORD und DB_APP_PASSWORD enthält:
+
+    cd <Projektordner>/docker
     docker compose up -d
-    docker logs --tail 5 mon_mssql_express   # auf „Recovery is complete" warten
+    docker logs --tail 5 opengencut-db     # auf „ready for connections" warten
 
-3.2 Datenbank anlegen und Schema anwenden
+3.2 Das Datenbankschema
 
-Das Skript db/schema.sql legt die Datenbank geniuscut an, falls sie fehlt, und wendet alle Tabellen an. Es ist idempotent: Es kann ohne Schaden erneut ausgeführt werden.
+Bei der ersten Initialisierung des Volumes wird die Datenbank geniuscut angelegt und db/schema.sql automatisch angewendet, mit den Anfangsdaten der Compliance-Rahmenwerke. Das Skript ist idempotent: es kann ohne Schaden erneut ausgeführt werden.
 
-    cd <cartella del progetto>
-    docker cp db/schema.sql mon_mssql_express:/tmp/schema.sql
-    docker exec mon_mssql_express bash -c 'SQLCMD=$(ls /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd | head -1); "$SQLCMD" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -b -i /tmp/schema.sql'
+Um es erneut von Hand anzuwenden (zum Beispiel auf einer bestehenden Datenbank):
 
-Der Befehl endet mit dem Code 0, wenn alles korrekt ist. Die erwarteten Tabellen sind: agent, configuration, audit, usage_log, integration_resource, agent_access, access_limit, access_event, agent_version, agent_environment, agent_deployment, agent_evaluation, integration_approval.
+    docker exec -i -e MYSQL_PWD="$DB_ROOT_PASSWORD" opengencut-db mariadb -uroot geniuscut < db/schema.sql
 
-3.3 API starten
+Die erwarteten Tabellen sind 36, darunter agent, configuration, audit, usage_log, integration_resource, agent_access, access_limit, access_event, agent_version, agent_environment, agent_deployment, agent_evaluation, integration_approval, app_lock.
 
-Aus dem Ordner docker/ des Projekts. Das Passwort wird in keine Datei geschrieben: Es wird aus der .env des Datenbank-Stacks gelesen.
+3.3 Die API starten
 
-    cd <cartella del progetto>/docker
-    export MSSQL_SA_PASSWORD="$(grep '^MSSQL_SA_PASSWORD=' <cartella dello stack del database>/.env | cut -d= -f2- | tr -d '\"')"
-    docker compose up -d
-
-Beim ersten Start kompiliert der Container das Go-Modul: Das dauert etwa 30 bis 45 Sekunden. Der Server wartet bis zu 60 Sekunden, bis die Datenbank antwortet.
+Die API startet zusammen mit dem Stack (Abschnitt 3.1). Beim ersten Start kompiliert der Container das Go-Modul: das dauert etwa 30 bis 45 Sekunden. Der Server wartet bis zu 60 Sekunden, bis die Datenbank antwortet.
 
 Prüfung:
 
     curl -s http://localhost:8080/api/health
     # erwartet: {"db":"ok","status":"ok"}
 
-Öffnen Sie danach http://localhost:8080/ im Browser.
+Danach http://localhost:8080/ im Browser öffnen.
 
 4. Konfiguration
-----------------
-
 Die Einstellungen sind Umgebungsvariablen des Dienstes opengencut-api in docker/docker-compose.yml.
 
-Variable  Standardwert  Bedeutung
-MSSQL_HOST  mon_mssql_express  Host von SQL Server
-MSSQL_PORT  1433  Port von SQL Server
-MSSQL_DATABASE  geniuscut  Datenbank
-MSSQL_USER  sa  Benutzer
-MSSQL_PASSWORD  keiner (erforderlich)  Passwort, von der Compose-Datei aus MSSQL_SA_PASSWORD übergeben
+Variable  Standard  Bedeutung
+DB_HOST  opengencut-db  Host der Datenbank (Containername im Stack)
+DB_PORT  3306  Port der Datenbank
+DB_NAME  geniuscut  Datenbank
+DB_USER  gencut  Anwendungsbenutzer (vom Compose-File angelegt)
+DB_PASSWORD  keiner (erforderlich)  Passwort des Anwendungsbenutzers, vom Compose-File aus DB_APP_PASSWORD übergeben
 HTTP_ADDR  :8080  Adresse, auf der die API lauscht
 WEB_DIR  /web  Ordner der Oberfläche im Container
 
-Um den Port der API zu ändern, passen Sie ports und HTTP_ADDR in der Compose-Datei an und führen docker compose up -d erneut aus.
+Die Datenbank verwendet utf8mb4 mit der Isolationsstufe READ-COMMITTED, gesetzt im Compose-File.
 
-Schreiben Sie das Passwort weder in die Compose-Datei noch in andere Projektdateien.
+Passwörter niemals in das Compose-File oder in andere Projektdateien schreiben.
 
 5. Sicherung
-------------
+Die Daten liegen in der Datenbank geniuscut. Die API speichert keinen lokalen Zustand: die Datenbanksicherung genügt.
 
-Die Daten liegen in der Datenbank geniuscut. Die API hält keinen lokalen Zustand: Die Sicherung der Datenbank genügt.
+Vollständige Sicherung (die Datei wird auf dem Host gespeichert, außerhalb des Containers):
 
-Der Dateipfad von SQL Server im Container ist /var/opt/mssql. Der folgende Befehl legt eine vollständige Sicherung in einem Ordner im Container an, der auf dem Host als Ordner data/ des Stacks eingebunden ist.
+    docker exec opengencut-db sh -c 'exec mariadb-dump -uroot -p"$MARIADB_ROOT_PASSWORD" --single-transaction --routines geniuscut' > geniuscut-JJJJ-MM-TT.sql
 
-    docker exec mon_mssql_express bash -c 'mkdir -p /var/opt/mssql/backup && SQLCMD=$(ls /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd | head -1); "$SQLCMD" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -Q "BACKUP DATABASE geniuscut TO DISK = N'"'"'/var/opt/mssql/backup/geniuscut_$(date +%Y%m%d_%H%M).bak'"'"' WITH INIT, COPY_ONLY"'
+Der Befehl wurde getestet: die Datei, in eine Testdatenbank zurückgespielt, hat dieselben Anzahlen an Tabellen, Agenten und Kontrollen wie das Original. Vor einem Notfall immer zuerst in einer Testdatenbank wiederherstellen. Die Datei enthält Daten des Registers und der Protokolle: mit derselben Sorgfalt aufbewahren wie die Daten selbst.
 
-Kopieren Sie die Sicherung aus dem Container heraus und bewahren Sie sie auf. Prüfen Sie die Datei immer mit:
+Wiederherstellung (in eine leere oder Testdatenbank):
 
-    docker exec mon_mssql_express bash -c 'SQLCMD=$(ls /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd | head -1); "$SQLCMD" -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -No -Q "RESTORE VERIFYONLY FROM DISK = N'"'"'/var/opt/mssql/backup/DATEINAME.bak'"'"'"'
-
-Der Sicherungsbefehl und die Prüfung wurden in einem temporären Ordner im Container getestet. Die Wiederherstellung (RESTORE DATABASE) ist noch nicht getestet: Testen Sie sie auf einer Testdatenbank, bevor Sie sie im Notfall verwenden.
+    docker exec -i opengencut-db sh -c 'exec mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" geniuscut' < geniuscut-JJJJ-MM-TT.sql
 
 6. Prüfungen nach einem Eingriff
 --------------------------------
@@ -114,8 +106,8 @@ Die Prüfung audit/verify berechnet die Hash-Kette des Protokolls und des Zugrif
 
 Symptom  Wahrscheinliche Ursache  Maßnahme
 curl auf /api/health erhält keine Antwort  API-Container nicht gestartet oder noch beim Kompilieren  docker logs opengencut-api; 45 Sekunden warten
-Log: MSSQL_PASSWORD non impostata  MSSQL_SA_PASSWORD vor docker compose up nicht exportiert  den Export aus Schritt 3.3 wiederholen
-Health 503 mit "db":"error"  SQL Server lauscht nicht  docker ps, docker logs mon_mssql_express; Port 1433 prüfen
+Log: DB_PASSWORD nicht gesetzt  DB_APP_PASSWORD fehlt in docker/.env  ergänzen und docker compose up -d erneut ausführen
+Health 503 mit "db":"error"  MariaDB lauscht nicht  docker ps, docker logs opengencut-db
 Log: Invalid object name 'dbo.xxx'  Schema nicht angewendet oder veraltet  db/schema.sql erneut anwenden (Schritt 3.2)
 500 internal_error bei einer Route  interner Fehler: das Detail steht nur im Log  docker logs opengencut-api \  grep errore
 409 conflict bei einer Konfiguration  Schlüssel bereits im Register vorhanden  anderen Schlüssel wählen

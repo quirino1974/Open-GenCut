@@ -21,8 +21,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	mssql "github.com/microsoft/go-mssqldb"
 )
 
 var (
@@ -456,11 +454,8 @@ func recordDeployment(ctx context.Context, tx *sql.Tx, agentID int, action, env 
 
 	// Versione corrente dell'ambiente: inserimento o aggiornamento.
 	if _, err := tx.ExecContext(ctx,
-		`MERGE dbo.agent_environment AS t
-		 USING (SELECT @p1 AS agent_id, @p2 AS environment) AS s
-		    ON t.agent_id = s.agent_id AND t.environment = s.environment
-		 WHEN MATCHED THEN UPDATE SET version_label = @p3, updated_at = SYSUTCDATETIME()
-		 WHEN NOT MATCHED THEN INSERT (agent_id, environment, version_label) VALUES (@p1, @p2, @p3);`,
+		`INSERT INTO agent_environment (agent_id, environment, version_label) VALUES (@p1, @p2, @p3)
+		 ON DUPLICATE KEY UPDATE version_label = VALUES(version_label), updated_at = UTC_TIMESTAMP(3)`,
 		agentID, env, version); err != nil {
 		return d, err
 	}
@@ -749,15 +744,7 @@ func writeInvalidState(w http.ResponseWriter, message string) {
 
 // writeLifecycleDBError gestisce la violazione di unicità delle versioni.
 func writeLifecycleDBError(w http.ResponseWriter, where string, err error) {
-	var me mssql.Error
-	var mep *mssql.Error
-	var num int32
-	switch {
-	case errors.As(err, &me):
-		num = me.Number
-	case errors.As(err, &mep):
-		num = mep.Number
-	}
+	num := dbErrNumber(err)
 	if num == 2627 || num == 2601 {
 		writeError(w, http.StatusConflict, "conflict", "versione già registrata per questo agente")
 		return

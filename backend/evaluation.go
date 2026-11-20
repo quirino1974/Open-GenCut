@@ -19,8 +19,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	mssql "github.com/microsoft/go-mssqldb"
 )
 
 var (
@@ -274,15 +272,7 @@ func (s *Server) recordTrace(ctx context.Context, in TraceInput) (Trace, *svcErr
 
 // dbErr e agentErr traducono gli errori di scrittura in errori di servizio.
 func dbErr(where string, err error) *svcErr {
-	var me mssql.Error
-	var mep *mssql.Error
-	var num int32
-	switch {
-	case errors.As(err, &me):
-		num = me.Number
-	case errors.As(err, &mep):
-		num = mep.Number
-	}
+	num := dbErrNumber(err)
 	switch num {
 	case 2627, 2601:
 		return &svcErr{status: http.StatusConflict, code: "conflict", msg: "valore già presente (chiave duplicata)"}
